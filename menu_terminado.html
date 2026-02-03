@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Menú - Producto Terminado</title>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: var(--primary);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .menu-button {
+            display: block;
+            width: 80%;
+            max-width: 300px;
+            padding: 25px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            color: var(--primary);
+            background-color: var(--card-bg);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+        .menu-button:active { transform: scale(0.98); }
+        
+        .btn-back { 
+            background-color: transparent; 
+            color: #95a5a6; 
+            box-shadow: none; 
+            border: none; 
+            margin-top: 30px; 
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Inventario Producto Terminado</h1>
+    <a href="registro.html" class="menu-button">📝 Registro de Inventario</a>
+    <a href="checklist.html" class="menu-button">✔️ Check List de Fardos</a>
+    <a href="etiqueta_lote.html" class="menu-button">🏷️ Etiqueta Lote</a>
+    <a href="etiquetas_fardo.html" class="menu-button">🏷️ Etiquetas por Fardo</a>
+    <a href="verificador_inab.html" class="menu-button">🌲 Verificador INAB</a>
+    <a href="packing.html" class="menu-button">📦 Rebajar y Packing List</a>
+    
+    <!-- <a href="index.html" class="menu-button btn-back">⬅ Volver al Inicio</a> -->
+</body>
+</html>

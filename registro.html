@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Inventario - Bluefy Optimizado</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+    
+    <script src="formato_etiqueta_producto_terminado.js"></script>
+    
+    <style>
+        :root {
+            --primary: #1A237E;
+            --accent: #1A237E;
+            --bg: #F5F7F9;
+            --text-dark: #2c3e50;
+            --text-gray: #95a5a6;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 10px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 100%; margin: 0 auto; }
+        h2 { text-align: center; font-size: 1.2rem; color: var(--primary); margin: 10px 0; }
+        
+        .card {
+            background: white;
+            padding: 12px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+        }
+
+        label { display: block; margin-top: 8px; font-weight: 700; font-size: 0.8rem; color: var(--text-gray); text-transform: uppercase; letter-spacing: 0.5px; }
+        input, select {
+            width: 100%;
+            padding: 10px;
+            margin-top: 4px;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            background-color: #fafafa;
+            color: var(--text-dark);
+        }
+        input:focus, select:focus {
+            background-color: #fff;
+            border-color: var(--primary);
+            outline: none;
+        }
+
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+        .compact-input { padding: 8px; font-size: 0.9rem; height: 38px; }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:active { opacity: 0.8; }
+
+        .btn-add { background-color: var(--primary); color: white; }
+        .btn-export { background-color: var(--text-dark); color: white; }
+        .btn-print { background-color: #fff; border: 2px solid var(--primary); color: var(--primary); }
+        .btn-bt { background-color: #e0e6ed; color: var(--text-dark); margin-bottom: 10px; box-shadow: none; }
+
+        /* Estilo Botón Volver */
+        .btn-back { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            margin-top: 20px; 
+            display: block; 
+            text-align: center; 
+            text-decoration: none; 
+            padding: 15px; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            border: 1px solid #cbd5e1;
+        }
+        .btn-back:hover { background-color: #cbd5e1; }
+
+        .row-item {
+            background: #fff;
+            padding: 10px;
+            margin-top: 8px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+        }
+        
+        .detail-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        .detail-table th { background: #f8f9fa; padding: 6px; font-size: 0.75rem; text-align: left; color: var(--text-gray); text-transform: uppercase; }
+        .detail-table td { padding: 6px; border-bottom: 1px solid #f0f0f0; }
+        .detail-table input { margin: 0; padding: 8px; }
+        .btn-small { padding: 6px 10px; margin: 0; width: auto; background: var(--primary); color: white; border-radius: 6px; font-size: 0.8rem; }
+        .btn-del { background: #ff5252; color: white; width: auto; padding: 6px 10px; margin: 0; border-radius: 6px; }
+
+        #label-template {
+            display: none;
+            background: white;
+            box-sizing: border-box;
+            width: 4in;
+            height: 3in;
+            padding: 5px 10px;
+            flex-direction: column;
+            overflow: hidden;
+            align-items: center;
+            text-align: center;
+        }
+
+        .slider-container {
+            display: flex;
+            overflow-x: auto;
+            scroll-snap-type: x mandatory;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            gap: 10px;
+            padding-bottom: 5px;
+        }
+        .slider-container::-webkit-scrollbar { display: none; }
+        
+        .slider-page {
+            min-width: 100%;
+            scroll-snap-align: center;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            grid-auto-rows: min-content;
+            gap: 8px;
+        }
+        
+        .quick-btn {
+            padding: 15px 0;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--text-dark);
+            cursor: pointer;
+            user-select: none;
+            touch-action: manipulation;
+        }
+        .quick-btn.active { background-color: var(--primary); color: white; border-color: var(--primary); box-shadow: 0 4px 8px rgba(26, 35, 126, 0.2); }
+        .quick-btn:active { transform: scale(0.95); }
+
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Registro de Inventario (Bluefy)</h2>
+    
+    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+        <button class="btn-bt" onclick="conectarBluetooth()" style="margin-bottom:0; flex: 1;">📡 Conectar Impresora BT</button>
+        <button id="btnAutoPrint" class="btn-bt" onclick="toggleAutoPrint()" style="margin-bottom:0; flex: 1; background-color: #2ecc71; color: white;">🖨️ Auto: ON</button>
+        <button class="btn-bt" onclick="imprimirTest()" style="margin-bottom:0; width: 60px; background-color: #34495e; color: white;">🛠️</button>
+    </div>
+
+    <div class="card">
+        <div class="grid-3">
+            <div>
+                <label>Lote</label>
+                <input type="text" id="loteId" class="compact-input" placeholder="Lote">
+            </div>
+            <div>
+                <label>Fardo</label>
+                <input type="number" id="fardoNo" class="compact-input" placeholder="#">
+            </div>
+            <div>
+                <label>Ancho</label>
+                <input type="number" id="ancho" value="5" class="compact-input">
+            </div>
+        </div>
+
+        <div class="grid-3">
+            <div>
+                <label>Grosor</label>
+                <select id="grosor" class="compact-input">
+                    <option value="3/4">3/4"</option>
+                    <option value="1/2">1/2"</option>
+                </select>
+            </div>
+            <div>
+                <label>Producto</label>
+                <select id="producto" class="compact-input" onchange="handleProductChange()">
+                    <option value="Piso Barnizado">Barnizado</option>
+                    <option value="Piso Crudo">Crudo</option>
+                    <option value="Tranquilla">Tranquilla</option>
+                    <option value="Deck">Deck</option>
+                    <option value="Zocalo">Zocalo</option>
+                </select>
+            </div>
+            <div id="div-calidad" style="display: none;">
+                <label>Calidad</label>
+                <select id="calidad" class="compact-input">
+                    <option value="Primera">Primera</option>
+                    <option value="Segunda">Segunda</option>
+                </select>
+            </div>
+        </div>
+        
+        <div style="margin-top: 8px;">
+            <label>Especie</label>
+            <input type="text" id="especie" value="Manchiche" class="compact-input">
+        </div>
+
+        <hr>
+        
+        <div style="margin-bottom: 15px;">
+            <label style="color:var(--primary);">1. Selecciona Piezas (Desliza ↔):</label>
+            <div id="quick-piezas" class="slider-container"></div>
+            
+            <label style="color:var(--primary); margin-top:10px;">2. Toca Largo para AGREGAR (Desliza ↔):</label>
+            <div id="quick-largos" class="slider-container"></div>
+        </div>
+
+        <hr>
+
+        <div style="background: #f0f4f8; padding: 10px; border-radius: 12px; margin-bottom: 10px;">
+            <label style="margin-top:0; color: var(--primary);">AGREGAR PIEZAS (Enter para agregar)</label>
+            <div style="display: flex; gap: 5px; align-items: center;">
+                <input type="number" id="newPiezas" class="compact-input" placeholder="Pzs" style="flex:1;">
+                <span style="font-weight:bold;">x</span>
+                <input type="number" id="newLargo" class="compact-input" placeholder="Largo" style="flex:1;">
+                <button class="btn-small" onclick="agregarLinea()" style="width:auto; height:38px; margin:0; background: var(--primary);">➕</button>
+            </div>
+        </div>
+
+        <table class="detail-table">
+            <thead>
+                <tr>
+                    <th>Piezas</th>
+                    <th>Largo</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody id="tablaDetallesBody"></tbody>
+        </table>
+        
+        <button class="btn-add" onclick="agregarFardo()">Guardar Fardo</button>
+    </div>
+
+    <div class="card">
+        <h3>Lote Actual: <span id="displayLote">---</span></h3>
+        <div id="listaFardos"></div>
+        <button class="btn-export" onclick="exportarExcel()">EXPORTAR A EXCEL</button>
+    </div>
+
+    <a href="index.html" class="btn-back">⬅ Volver al Dashboard</a>
+</div>
+
+<div id="label-template">
+    <svg id="barcode"></svg>
+    <div id="printLote" style="font-weight:bold; font-size: 1.1rem; margin-top: 2px;">Lote: ---</div>
+    <div id="printFardoM2" style="font-weight:bold; font-size: 1rem; margin-bottom: 5px;">Fardo: --- - --- M2</div>
+    <div style="width:100%; border-bottom: 2px solid black; margin-bottom: 5px;"></div>
+    <div id="printProducto" style="font-weight:bold; font-size: 1rem;">Producto ---</div>
+    <div id="printEspecie" style="font-size: 0.9rem;">Especie: ---</div>
+    <div style="width:100%; border-bottom: 2px solid black; margin: 5px 0;"></div>
+    <div style="display: flex; justify-content: space-between; flex-grow: 1; width: 100%;">
+        <div style="width:48%;">
+            <div class="print-col-header"><b>Piezas</b></div>
+            <div id="printPiezasCol"></div>
+        </div>
+        <div style="width:48%;">
+            <div class="print-col-header"><b>Largo</b></div>
+            <div id="printLargosCol"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let fardosData = [];
+    let inventarioRemoto = [];
+    let currentDetalles = [];
+    let bluetoothDevice;
+    let printCharacteristic;
+    let selectedPiezas = 1;
+    let autoPrint = true;
+
+    function debug(msg, type='info') {
+        console.log(`[${type.toUpperCase()}] ${msg}`);
+    }
+
+    // --- MANEJO DE PRODUCTO Y CALIDAD ---
+    function handleProductChange() {
+        const prod = document.getElementById('producto').value;
+        const divCalidad = document.getElementById('div-calidad');
+        const calidadSelect = document.getElementById('calidad');
+        const anchoInput = document.getElementById('ancho');
+
+        // Mostrar Calidad si es Piso, Deck o Zocalo
+        if (prod === 'Piso Barnizado' || prod === 'Piso Crudo' || prod === 'Deck') {
+            divCalidad.style.display = 'block';
+            calidadSelect.innerHTML = `
+                <option value="Primera">Primera</option>
+                <option value="Segunda">Segunda</option>
+            `;
+        } else if (prod === 'Zocalo') {
+            divCalidad.style.display = 'block';
+            calidadSelect.innerHTML = `
+                <option value="Corte 45">Corte 45</option>
+                <option value="Italiano">Italiano</option>
+                <option value="Pecho Paloma">Pecho Paloma</option>
+            `;
+        } else {
+            divCalidad.style.display = 'none';
+        }
+
+        if(anchoInput.value === "0") anchoInput.value = "5"; 
+    }
+
+    window.onload = function() {
+        const guardado = localStorage.getItem('inventario_fardos');
+        if (guardado) {
+            fardosData = JSON.parse(guardado);
+        }
+        
+        if(localStorage.getItem('last_lote')) document.getElementById('loteId').value = localStorage.getItem('last_lote');
+        if(localStorage.getItem('last_fardo')) document.getElementById('fardoNo').value = localStorage.getItem('last_fardo');
+        
+        if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+            navigator.bluetooth.getDevices().then(devices => {
+                const myPrinter = devices.find(d => d.name && (d.name.includes('MTH') || d.name.includes('Printer')));
+                if (myPrinter) {
+                    conectarDispositivo(myPrinter);
+                }
+            });
+        }
+
+        document.getElementById('newPiezas').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                if (this.value.trim() === "" && currentDetalles.length > 0) {
+                    agregarFardo();
+                } else {
+                    document.getElementById('newLargo').focus();
+                }
+            }
+        });
+
+        document.getElementById('newLargo').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') agregarLinea();
+        });
+
+        renderQuickButtons();
+        handleProductChange(); // Inicializar estado de calidad
+        cargarInventarioRemoto();
+        document.getElementById('loteId').addEventListener('input', actualizarLista);
+        actualizarLista();
+    };
+
+    function toggleAutoPrint() {
+        autoPrint = !autoPrint;
+        const btn = document.getElementById('btnAutoPrint');
+        if(autoPrint) {
+            btn.innerText = "🖨️ Auto: ON";
+            btn.style.backgroundColor = "#2ecc71";
+            btn.style.color = "white";
+        } else {
+            btn.innerText = "🖨️ Auto: OFF";
+            btn.style.backgroundColor = "#95a5a6";
+            btn.style.color = "white";
+        }
+    }
+
+    function cargarInventarioRemoto() {
+        debug('🌐 Cargando inventario remoto...', 'info');
+        fetch(GOOGLE_SCRIPT_URL)
+        .then(response => response.json())
+        .then(data => {
+            inventarioRemoto = data;
+            debug(`✅ Inventario remoto cargado: ${data.length} fardos`, 'success');
+            actualizarLista();
+        })
+        .catch(error => {
+            debug('❌ Error cargando inventario remoto: ' + error.message, 'error');
+        });
+    }
+
+    function renderQuickButtons() {
+        const piezasItems = [];
+        for(let i=1; i<=12; i++) {
+            piezasItems.push({ label: i, value: i, active: i === selectedPiezas });
+        }
+        
+        createSlider('quick-piezas', piezasItems, 4, (val, btn) => {
+            selectedPiezas = val;
+            document.getElementById('newPiezas').value = val;
+            document.querySelectorAll('#quick-piezas .quick-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+        });
+
+        const largosItems = [];
+        for(let k=4; k<=28; k++) {
+            let val = k / 4;
+            largosItems.push({ label: val + "'", value: val });
+        }
+        
+        createSlider('quick-largos', largosItems, 8, (val, btn) => {
+            document.getElementById('newLargo').value = val;
+            document.getElementById('newPiezas').value = selectedPiezas;
+            agregarLinea(true);
+            
+            const originalBg = btn.style.backgroundColor;
+            btn.style.backgroundColor = '#1A237E';
+            btn.style.color = 'white';
+            setTimeout(() => {
+                btn.style.backgroundColor = originalBg;
+                btn.style.color = '';
+            }, 150);
+        });
+    }
+
+    function createSlider(containerId, items, itemsPerPage, onClick) {
+        const container = document.getElementById(containerId);
+        container.innerHTML = "";
+
+        for (let i = 0; i < items.length; i += itemsPerPage) {
+            const pageItems = items.slice(i, i + itemsPerPage);
+            const page = document.createElement('div');
+            page.className = 'slider-page';
+            
+            pageItems.forEach(item => {
+                const btn = document.createElement('div');
+                btn.className = 'quick-btn';
+                if (item.active) btn.classList.add('active');
+                btn.innerText = item.label;
+                btn.onclick = () => onClick(item.value, btn);
+                page.appendChild(btn);
+            });
+            container.appendChild(page);
+        }
+    }
+
+    function agregarLinea(fromQuickButton = false) {
+        const pzs = document.getElementById('newPiezas').value;
+        const largo = document.getElementById('newLargo').value;
+
+        if (!pzs || !largo) {
+            alert("Ingresa Piezas y Largo");
+            return;
+        }
+
+        currentDetalles.push({
+            piezas: parseInt(pzs),
+            largo: parseFloat(largo)
+        });
+
+        document.getElementById('newPiezas').value = '';
+        document.getElementById('newLargo').value = '';
+        
+        if (!fromQuickButton) {
+            document.getElementById('newPiezas').focus();
+        } else {
+            document.getElementById('newPiezas').value = selectedPiezas;
+        }
+
+        renderDetalles();
+    }
+
+    function renderDetalles() {
+        const tbody = document.getElementById('tablaDetallesBody');
+        tbody.innerHTML = "";
+        currentDetalles.forEach((d, index) => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td>${d.piezas}</td>
+                <td>${d.largo}</td>
+                <td><button class="btn-del" onclick="eliminarLinea(${index})">X</button></td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function eliminarLinea(index) {
+        currentDetalles.splice(index, 1);
+        renderDetalles();
+    }
+
+    // --- NUEVA FUNCIÓN: Verificar consistencia del Lote ---
+    function verificarConsistenciaLote(lote, producto) {
+        // 1. Revisar en datos locales pendientes
+        const localConflict = fardosData.find(f => String(f.lote) === String(lote) && f.producto !== producto);
+        if (localConflict) {
+            return { error: true, prod: localConflict.producto, origen: "LOCAL" };
+        }
+
+        // 2. Revisar en datos remotos (Google Sheet)
+        const remoteConflict = inventarioRemoto.find(r => String(r['# Lote']) === String(lote) && (r['Producto'] || r['Calidad']) !== producto);
+        if (remoteConflict) {
+            return { error: true, prod: (remoteConflict['Producto'] || remoteConflict['Calidad']), origen: "REMOTO" };
+        }
+
+        return { error: false };
+    }
+
+    function agregarFardo() {
+        const pzsInput = document.getElementById('newPiezas');
+        const largoInput = document.getElementById('newLargo');
+        if (pzsInput.value && largoInput.value) {
+            agregarLinea();
+        }
+
+        if (currentDetalles.length === 0) {
+            alert("Debes agregar al menos una línea de detalle (Piezas/Largo)");
+            return;
+        }
+
+        const producto = document.getElementById('producto').value;
+        const anchoGlobal = parseFloat(document.getElementById('ancho').value) || 0;
+        const grosorStr = document.getElementById('grosor').value;
+        const lote = document.getElementById('loteId').value;
+        const fardoNo = document.getElementById('fardoNo').value;
+        
+        // --- CAPTURA DE CALIDAD ---
+        const divCalidad = document.getElementById('div-calidad');
+        let calidad = "";
+        if (divCalidad.style.display !== 'none') {
+            calidad = document.getElementById('calidad').value;
+        }
+
+        if(!lote || !fardoNo) {
+            alert("Por favor llena el Lote y el No. de Fardo");
+            return;
+        }
+
+        // --- VALIDACIÓN 1: DUPLICADO EXACTO ---
+        if (verificarDuplicado(lote, fardoNo, producto)) {
+            alert("⚠️ EL FARDO #" + fardoNo + " YA EXISTE para este Lote.");
+            return;
+        }
+
+        // --- VALIDACIÓN 2: CONSISTENCIA DE LOTE (Un lote = Un producto) ---
+        const checkConsistencia = verificarConsistenciaLote(lote, producto);
+        if (checkConsistencia.error) {
+            alert(`⛔ ERROR DE LOTE:\nEl Lote ${lote} ya está registrado como "${checkConsistencia.prod}" (${checkConsistencia.origen}).\nNo puedes mezclar "${producto}" en el mismo lote.`);
+            return;
+        }
+
+        const parseFraction = (str) => {
+            if (!str) return 0;
+            if (String(str).includes('/')) {
+                const parts = str.split('/');
+                return parseInt(parts[0]) / parseInt(parts[1]);
+            }
+            return parseFloat(str);
+        };
+        const grosorVal = parseFraction(grosorStr);
+        const unidad = (producto === 'Tranquilla' || producto === 'Zocalo' || producto === 'Deck') ? 'ml' : 'm2';
+
+        // --- FORMATO FECHA SIN HORA ---
+        const fechaSimple = new Date().toLocaleDateString('es-GT'); 
+
+        const filasParaEnviar = [];
+        let totalMetrosFardo = 0, totalP2Fardo = 0, totalM3Fardo = 0;
+
+        currentDetalles.forEach(d => {
+            const m2_linea = (unidad === 'm2') ? d.piezas * (d.largo * 0.3048) * (anchoGlobal * 0.0254) : 0;
+            const ml_linea = d.piezas * (d.largo * 0.3048);
+            
+            const m2Real_linea = (unidad === 'ml') ? ml_linea * (anchoGlobal * 0.0254) : m2_linea;
+            const p2_linea = m2Real_linea * 10.7639;
+            const m3_linea = m2Real_linea * (grosorVal * 0.0254);
+
+            filasParaEnviar.push({
+                lote: lote,
+                fardoNo: fardoNo,
+                producto: producto,
+                calidad: calidad, // Enviamos la calidad
+                grosor: String(grosorStr).includes('/') ? "'" + grosorStr : grosorStr,
+                ancho: anchoGlobal,
+                especie: document.getElementById('especie').value,
+                piezas: d.piezas,
+                largo: d.largo,
+                m2: parseFloat(m2_linea.toFixed(3)), ml: parseFloat(ml_linea.toFixed(2)),
+                p2: parseFloat(p2_linea.toFixed(2)), m3: parseFloat(m3_linea.toFixed(4)),
+                unidad: unidad,
+                fecha: fechaSimple
+            });
+
+            totalMetrosFardo += (unidad === 'ml') ? ml_linea : m2_linea;
+            totalP2Fardo += p2_linea;
+            totalM3Fardo += m3_linea;
+        });
+
+        const payload = {
+            sheetName: "PRODUCTO TERMINADO",
+            filas: filasParaEnviar
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) })
+            .then(res => console.log('✅ Fardo enviado a Google Sheets'))
+            .catch(err => console.error('❌ Error enviando a Sheets: ' + err));
+
+        const fardoParaHistorial = {
+            lote: lote, fardoNo: fardoNo, producto: producto, calidad: calidad,
+            grosor: grosorStr, ancho: anchoGlobal,
+            especie: document.getElementById('especie').value, detalles: [...currentDetalles],
+            m2: parseFloat(totalMetrosFardo.toFixed(2)),
+            p2: parseFloat(totalP2Fardo.toFixed(2)),
+            m3: parseFloat(totalM3Fardo.toFixed(4)),
+            unidad: unidad
+        };
+
+        fardosData.push(fardoParaHistorial);
+        guardarDatosLocales();
+        
+        currentDetalles = [];
+        renderDetalles();
+        
+        const inputFardo = document.getElementById('fardoNo');
+        const nextFardo = parseInt(inputFardo.value) + 1;
+        if (!isNaN(nextFardo)) inputFardo.value = nextFardo;
+        
+        localStorage.setItem('last_lote', lote);
+        localStorage.setItem('last_fardo', inputFardo.value);
+        
+        if (autoPrint) {
+            imprimirBluetooth(fardosData.length - 1, true);
+        }
+        actualizarLista();
+    }
+
+    function guardarDatosLocales() {
+        localStorage.setItem('inventario_fardos', JSON.stringify(fardosData));
+    }
+
+    function verificarDuplicado(lote, fardo, producto) {
+        const enLocal = fardosData.some(f => 
+            String(f.lote) === String(lote) && 
+            String(f.fardoNo) === String(fardo) && 
+            String(f.producto) === String(producto)
+        );
+        const enRemoto = inventarioRemoto.some(f => 
+            String(f['# Lote']) === String(lote) && 
+            String(f['# Fardo']) === String(fardo) && 
+            (f['Producto'] || f['Calidad']) === producto
+        );
+        
+        return enLocal || enRemoto;
+    }
+
+    function actualizarLista() {
+        const lista = document.getElementById('listaFardos');
+        const displayLote = document.getElementById('displayLote');
+        const loteActual = document.getElementById('loteId').value;
+
+        lista.innerHTML = "";
+        
+        const locales = fardosData.filter(f => String(f.lote) === String(loteActual));
+        const remotos = inventarioRemoto.filter(f => String(f['# Lote']) === String(loteActual));
+
+        let totalMetros = 0;
+        let count = 0;
+        let unidadLote = 'm²';
+
+        if (locales.length > 0) {
+            unidadLote = (locales[0].unidad === 'ml' || locales[0].producto === 'Tranquilla') ? 'ml' : 'm²';
+        } else if (remotos.length > 0) {
+            unidadLote = (remotos[0]['Unidad'] || 'm2') === 'ml' ? 'ml' : 'm²';
+        }
+
+        locales.forEach(f => { totalMetros += parseFloat(f.m2) || 0; count++; });
+        remotos.forEach(f => { totalMetros += parseFloat(f['M2']) || 0; count++; });
+        
+        if (loteActual) {
+            displayLote.innerHTML = `${loteActual} <br><small>(${count} Fardos - ${totalMetros.toFixed(2)} ${unidadLote})</small>`;
+        } else {
+            displayLote.innerText = "---";
+        }
+        
+        remotos.forEach(f => {
+            const unidadRemota = (f['Unidad'] || 'm2') === 'ml' ? 'ml' : 'm²';
+            const item = document.createElement('div');
+            item.className = 'row-item';
+            item.style.backgroundColor = '#f8f9fa'; 
+            item.style.borderLeft = '4px solid #95a5a6';
+            item.innerHTML = `
+                <span>☁️ Fardo: ${f['# Fardo']} (${f['M2']} ${unidadRemota})</span>
+                <span style="font-size:0.8rem; color:#666;">${f['Calidad'] || ''}</span>
+            `;
+            lista.appendChild(item);
+        });
+
+        fardosData.forEach((f, index) => {
+            if (String(f.lote) !== String(loteActual)) return;
+
+            const totalPiezas = f.detalles.reduce((acc, d) => acc + d.piezas, 0);
+            const unidadLocal = f.unidad || 'm2';
+            
+            const item = document.createElement('div');
+            item.className = 'row-item';
+            item.innerHTML = `
+                <span>Fardo: ${f.fardoNo} (${totalPiezas} pzs - ${f.m2} ${unidadLocal})</span> 
+                <div style="display:flex; gap:5px;">
+                    <button onclick="guardarImagen(${index})" class="btn-small" style="background:#3498db; width:auto;">Img</button>
+                    <button onclick="imprimirBluetooth(${index})" class="btn-small" style="background:#e67e22; width:auto;">BT</button>
+                    <button onclick="editarFardo(${index})" class="btn-small" style="background:#f1c40f; width:auto; margin-left:5px; color:black;">✏️</button>
+                    <button onclick="eliminarFardo(${index})" class="btn-del" style="width:auto; margin-left:5px;">🗑️</button>
+                </div>`;
+            lista.appendChild(item);
+        });
+    }
+
+    function eliminarFardo(index) {
+        if(confirm("¿Estás seguro de borrar el Fardo #" + fardosData[index].fardoNo + "?")) {
+            fardosData.splice(index, 1);
+            guardarDatosLocales();
+            actualizarLista();
+        }
+    }
+
+    function editarFardo(index) {
+        if(!confirm("¿Editar este fardo? Se moverá al formulario para que hagas cambios.")) return;
+
+        const f = fardosData[index];
+        
+        document.getElementById('loteId').value = f.lote;
+        document.getElementById('fardoNo').value = f.fardoNo;
+        document.getElementById('producto').value = f.producto;
+        handleProductChange(); // Actualizar opciones antes de setear valor
+
+        document.getElementById('grosor').value = f.grosor;
+        document.getElementById('ancho').value = f.ancho;
+        document.getElementById('especie').value = f.especie;
+        
+        // Setear calidad si existe
+        if(f.calidad) document.getElementById('calidad').value = f.calidad;
+        
+        currentDetalles = [...f.detalles];
+        renderDetalles();
+
+        fardosData.splice(index, 1);
+        guardarDatosLocales();
+
+        const remoteIndex = inventarioRemoto.findIndex(r => 
+            String(r['# Lote']) === String(f.lote) && 
+            String(r['# Fardo']) === String(f.fardoNo)
+        );
+        if (remoteIndex !== -1) {
+            inventarioRemoto.splice(remoteIndex, 1);
+        }
+
+        actualizarLista();
+        
+        document.querySelector('.container').scrollIntoView({behavior: 'smooth'});
+    }
+
+    function prepararEtiqueta(f) {
+        if (typeof JsBarcode !== 'undefined') {
+            try {
+                JsBarcode("#barcode", f.fardoNo, {
+                    format: "CODE128",
+                    displayValue: false,
+                    height: 40,
+                    width: 3,
+                    margin: 0
+                });
+            } catch(e) { console.error(e); }
+        }
+        
+        const unidad = f.unidad === 'ml' ? 'ML' : 'M2';
+        document.getElementById('printLote').innerText = "Lote: " + f.lote;
+        document.getElementById('printFardoM2').innerText = `Fardo: ${f.fardoNo} - ${f.m2} ${unidad}`;
+        
+        // Mostrar calidad en la etiqueta si existe
+        let prodText = `${f.producto}`;
+        if(f.calidad) prodText += ` (${f.calidad})`;
+        prodText += ` ${f.grosor} x ${f.ancho}"`;
+
+        document.getElementById('printProducto').innerText = prodText;
+        document.getElementById('printEspecie').innerText = "Especie: " + f.especie;
+        
+        const colPiezas = document.getElementById('printPiezasCol');
+        const colLargos = document.getElementById('printLargosCol');
+        
+        colPiezas.innerHTML = "";
+        colLargos.innerHTML = "";
+
+        f.detalles.forEach(d => {
+            const pDiv = document.createElement('div');
+            pDiv.className = 'print-val';
+            pDiv.innerText = d.piezas;
+            colPiezas.appendChild(pDiv);
+
+            const lDiv = document.createElement('div');
+            lDiv.className = 'print-val';
+            lDiv.innerText = d.largo;
+            colLargos.appendChild(lDiv);
+        });
+    }
+
+    function guardarImagen(index) {
+        const f = fardosData[index];
+        prepararEtiqueta(f);
+        
+        const label = document.getElementById('label-template');
+        
+        label.style.display = 'flex';
+        label.style.position = 'fixed';
+        label.style.zIndex = '9999';
+        label.style.top = '0';
+        label.style.left = '0';
+        
+        html2canvas(label, { scale: 2 }).then(canvas => {
+            label.style.display = 'none';
+            
+            canvas.toBlob(function(blob) {
+                const file = new File([blob], `Fardo_${f.fardoNo}.png`, { type: "image/png" });
+
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({
+                        files: [file]
+                    }).catch(e => console.log("Compartir cancelado o fallido", e));
+                } else {
+                    const link = document.createElement('a');
+                    link.download = `Fardo_${f.fardoNo}.png`;
+                    link.href = canvas.toDataURL("image/png");
+                    link.click();
+                }
+            });
+        });
+    }
+
+    function exportarExcel() {
+        if(fardosData.length === 0) return alert("No hay datos para exportar");
+        
+        let flatData = [];
+        fardosData.forEach(f => {
+            f.detalles.forEach(d => {
+                flatData.push({
+                    Especie: f.especie,
+                    Producto: f.producto,
+                    Calidad: f.calidad || "",
+                    Dimensiones: `${f.grosor} x ${f.ancho}`,
+                    Lote: f.lote,
+                    Fardo: f.fardoNo,
+                    Grosor: f.grosor,
+                    Ancho_In: f.ancho,
+                    Piezas: d.piezas,
+                    Largo_Ft: d.largo,
+                    Metros: f.m2,
+                    Unidad: f.unidad
+                });
+            });
+        });
+
+        const worksheet = XLSX.utils.json_to_sheet(flatData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Inventario");
+        
+        XLSX.writeFile(workbook, `Inventario_Lote_${fardosData[0].lote}.xlsx`);
+    }
+
+    // --- Lógica Bluetooth (Web Bluetooth API) ---
+    async function conectarBluetooth() {
+        try {
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb']
+            });
+            conectarDispositivo(bluetoothDevice);
+        } catch (error) {
+            console.log("Cancelado o Error: " + error);
+        }
+    }
+
+    async function conectarDispositivo(device) {
+        bluetoothDevice = device;
+        const server = await bluetoothDevice.gatt.connect();
+
+        let characteristic;
+        try {
+            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        } catch (e) {
+            const service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+        }
+
+        printCharacteristic = characteristic;
+        const btn = document.querySelector('.btn-bt');
+        if(btn) {
+            btn.innerText = "✅ Conectado";
+            btn.style.backgroundColor = "#d4edda";
+            btn.style.color = "#155724";
+        }
+    }
+
+    async function imprimirBluetooth(index, silent = false) {
+        if (!printCharacteristic) {
+            if(!silent) alert("Primero debes conectar la impresora (Botón Gris arriba)");
+            return;
+        }
+
+        const f = fardosData[index];
+        
+        try {
+            await imprimirEtiquetaTerminado(printCharacteristic, f, silent);
+        } catch (error) {
+            if(!silent) alert("Error enviando datos: " + error);
+            conectarBluetooth(); // Intentar reconectar si falla
+        }
+    }
+
+    async function imprimirTest() {
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) return;
+        }
+        try {
+            const encoder = new TextEncoder();
+            const cmd = "SIZE 4,2\r\nCLS\r\nTEXT 50,50,\"3\",0,1,1,\"TEST MHT-L1081\"\r\nPRINT 1,1\r\n";
+            const data = encoder.encode(cmd);
+            if (printCharacteristic.properties.write) await printCharacteristic.writeValue(data);
+            else await printCharacteristic.writeValueWithoutResponse(data);
+            alert("✅ Test enviado");
+        } catch (e) {
+            alert("❌ Error test: " + e.message);
+        }
+    }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Diagnóstico e Impresión - Meihengtong</title>
+    <script src="formato_etiqueta_producto_terminado.js"></script>
+    <style>
+        :root { --primary: #1A237E; --bg: #F5F7F9; --text: #2c3e50; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); padding: 20px; margin: 0; }
+        .card { background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        h2 { color: var(--primary); margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        button { 
+            width: 100%; padding: 15px; margin: 5px 0; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        .btn-scan { background: #007bff; color: white; }
+        .btn-print { background: #27ae60; color: white; }
+        .btn-raw { background: #34495e; color: white; }
+        #log { 
+            background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 10px; 
+            font-family: 'Courier New', monospace; font-size: 12px; white-space: pre-wrap; 
+            max-height: 300px; overflow-y: auto; border: 2px solid #333;
+        }
+        .status-tag { display: inline-block; padding: 4px 8px; border-radius: 5px; font-size: 12px; font-weight: bold; margin-bottom: 10px; }
+        .status-off { background: #ffebee; color: #c62828; }
+        .status-on { background: #e8f5e9; color: #2e7d32; }
+        textarea { width: 100%; height: 80px; margin-top: 10px; border-radius: 8px; border: 1px solid #ccc; padding: 10px; box-sizing: border-box; font-family: monospace; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h2>🔍 Escáner de Diagnóstico (UUIDs)</h2>
+        <p style="font-size: 13px; color: #666;">Usa esta herramienta para identificar los servicios reales de tu impresora Meihengtong.</p>
+        <button class="btn-scan" onclick="obtenerUUIDs()">ESCANEAR Y EXTRAER SERVICIOS</button>
+        <div id="log">Los resultados del escaneo aparecerán aquí...</div>
+    </div>
+
+    <div class="card">
+        <h2>🖨️ Panel de Pruebas de Impresión</h2>
+        <div id="bt-status-tag" class="status-tag status-off">DESCONECTADO</div>
+        
+        <button class="btn-print" onclick="conectarYProbar()">1. CONECTAR Y ENVIAR ETIQUETA TEST</button>
+        
+        <div style="margin-top: 15px;">
+            <label style="font-weight: bold; font-size: 14px;">Comando TSPL Manual:</label>
+            <textarea id="rawCommand">SIZE 101 mm, 76 mm&#13;&#10;GAP 3 mm, 0 mm&#13;&#10;DIRECTION 1&#13;&#10;CLS&#13;&#10;TEXT 50,50,"3",0,2,2,"JOSE CORADO"&#13;&#10;BARCODE 50,150,"128",100,1,0,3,3,"202406180640"&#13;&#10;PRINT 1,1&#13;&#10;</textarea>
+            <button class="btn-raw" onclick="enviarRaw()">ENVIAR COMANDO CRUDO</button>
+        </div>
+    </div>
+
+    <script>
+        let deviceGlobal = null;
+        let characteristicGlobal = null;
+
+        function writeLog(msg) {
+            const log = document.getElementById('log');
+            log.innerHTML += `\n[${new Date().toLocaleTimeString()}] ${msg}`;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function obtenerUUIDs() {
+            const logElement = document.getElementById('log');
+            logElement.innerHTML = "Buscando dispositivo...";
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [0xff00, 0xfee7, 0x18f0, 0x1800, 0x1801, 'e7810a71-73ae-499d-8c15-faa9aef0c3f2'] 
+                });
+                writeLog(`Conectado a: ${device.name}`);
+                const server = await device.gatt.connect();
+                writeLog("--- SERVICIOS ENCONTRADOS ---");
+                const services = await server.getPrimaryServices();
+                for (const service of services) {
+                    writeLog(`Servicio: ${service.uuid}`);
+                    const characteristics = await service.getCharacteristics();
+                    characteristics.forEach(c => {
+                        let props = [];
+                        if (c.properties.write) props.push("WRITE");
+                        if (c.properties.writeWithoutResponse) props.push("WRITE_NO_RESP");
+                        if (c.properties.notify) props.push("NOTIFY");
+                        if (c.properties.read) props.push("READ");
+                        writeLog(`  └─ Característica: ${c.uuid} [${props.join(", ")}]`);
+                    });
+                }
+                writeLog("--- FIN DEL ESCANEO ---");
+            } catch (error) {
+                writeLog(`ERROR: ${error.message}`);
+            }
+        }
+
+        async function conectarYProbar() {
+            const statusTag = document.getElementById('bt-status-tag');
+            try {
+                writeLog("0. Verificando disponibilidad de Bluetooth...");
+                if (!navigator.bluetooth) {
+                    throw new Error("Web Bluetooth no está disponible. Revisa los permisos de Bluefy en Ajustes.");
+                }
+
+                const availability = await navigator.bluetooth.getAvailability();
+                writeLog(availability ? "✅ Bluetooth disponible." : "❌ Bluetooth desactivado en el iPhone.");
+                
+                writeLog("1. Abriendo selector de Bluetooth...");
+                // Cambiamos a acceptAllDevices para forzar la aparición del diálogo de iOS
+                deviceGlobal = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: [
+                        '0000ff00-0000-1000-8000-00805f9b34fb', 
+                        '000018f0-0000-1000-8000-00805f9b34fb',
+                        '0000ae30-0000-1000-8000-00805f9b34fb'
+                    ]
+                });
+                
+                writeLog(`2. Dispositivo seleccionado: ${deviceGlobal.name}`);
+                writeLog("3. Intentando establecer conexión GATT...");
+                
+                const server = await deviceGlobal.gatt.connect();
+                writeLog("4. Conexión GATT establecida.");
+                
+                writeLog("5. Buscando servicios de impresión...");
+                let service, characteristic;
+
+                // Intento 1: Servicio FF00 (Estándar MHT)
+                try {
+                    service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+                    characteristic = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+                    writeLog("6. ✅ Servicio FF00 (MHT) detectado.");
+                } catch (e) {
+                    writeLog("⚠️ FF00 no disponible, probando 18F0...");
+                    // Intento 2: Servicio 18F0 (Alternativo)
+                    try {
+                        service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                        characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+                        writeLog("6. ✅ Servicio 18F0 detectado.");
+                    } catch (e2) {
+                        writeLog("⚠️ 18F0 no disponible, probando AE30...");
+                        // Intento 3: AE30 (Otro común)
+                        service = await server.getPrimaryService('0000ae30-0000-1000-8000-00805f9b34fb');
+                        characteristic = await service.getCharacteristic('0000ae01-0000-1000-8000-00805f9b34fb');
+                        writeLog("6. ✅ Servicio AE30 detectado.");
+                    }
+                }
+
+                characteristicGlobal = characteristic;
+
+                statusTag.innerText = "CONECTADO";
+                statusTag.className = "status-tag status-on";
+                writeLog("7. 🚀 Preparando datos TSPL...");
+
+                const tspl = 
+                  'SIZE 101 mm, 76 mm\r\n' +
+                  'GAP 3 mm, 0 mm\r\n' +
+                  'DENSITY 8\r\n' +
+                  'DIRECTION 1\r\n' +
+                  'CLS\r\n' +
+                  'TEXT 50,50,"3",0,2,2,"PRUEBA GIBOR"\r\n' +
+                  'BARCODE 50,150,"128",100,1,0,3,3,"TEST-12345"\r\n' + 
+                  'PRINT 1,1\r\n';
+
+                const data = new TextEncoder().encode(tspl);
+                writeLog(`8. Enviando ${data.length} bytes en paquetes de 20...`);
+                
+                // Chunking para evitar bloqueos en Bluefy/iOS
+                const CHUNK = 20;
+                for (let i = 0; i < data.length; i += CHUNK) {
+                    const chunk = data.slice(i, i + CHUNK);
+                    if (characteristicGlobal.properties.writeWithoutResponse) {
+                        await characteristicGlobal.writeValueWithoutResponse(chunk);
+                    } else {
+                        await characteristicGlobal.writeValue(chunk);
+                    }
+                    await new Promise(r => setTimeout(r, 50));
+                }
+                
+                writeLog("9. ✅ ¡Proceso finalizado! Revisa la impresora.");
+
+            } catch (error) {
+                if (error.name === 'NotFoundError') {
+                    writeLog("ℹ️ Selección cancelada o no se encontró el dispositivo.");
+                } else {
+                    writeLog(`❌ ERROR CRÍTICO: ${error.message}`);
+                    console.error(error);
+                }
+                statusTag.innerText = "ERROR";
+                statusTag.className = "status-tag status-off";
+            }
+        }
+
+        async function enviarRaw() {
+            if (!characteristicGlobal) return alert("Primero conecta la impresora.");
+            const rawText = document.getElementById('rawCommand').value;
+            const encoder = new TextEncoder();
+            const data = encoder.encode(rawText);
+            
+            writeLog("Enviando comando crudo...");
+            const CHUNK = 20;
+            for (let i = 0; i < data.length; i += CHUNK) {
+                const chunk = data.slice(i, i + CHUNK);
+                if (characteristicGlobal.properties.writeWithoutResponse) {
+                    await characteristicGlobal.writeValueWithoutResponse(chunk);
+                } else {
+                    await characteristicGlobal.writeValue(chunk);
+                }
+                await new Promise(r => setTimeout(r, 50));
+            }
+            writeLog("✅ Comando enviado.");
+        }
+    </script>
+</body>
+</html>

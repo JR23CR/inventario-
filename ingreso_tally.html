@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Ingreso de Tallys - Madera Aserrada</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+    
+    <script src="formato_etiqueta_producto_terminado.js"></script>
+
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #2c3e50;
+            --btn-pc: #00897b;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h2 { text-align: center; font-size: 1.5rem; color: var(--primary); margin-bottom: 20px; }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        label { display: block; margin-top: 10px; font-weight: 700; font-size: 0.8rem; color: #95a5a6; text-transform: uppercase; }
+        input, select {
+            width: 100%;
+            padding: 12px;
+            margin-top: 5px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            background-color: #fafafa;
+            outline: none;
+        }
+        input:focus, select:focus {
+            background-color: #fff;
+            border-color: var(--primary);
+        }
+
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 15px;
+            border: none;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+        }
+        .btn-main { background-color: var(--primary); color: white; }
+        .btn-secondary { background-color: var(--text-dark); color: white; }
+        
+        /* Botones de Impresión */
+        .btn-bt { background-color: #e67e22; color: white; margin-bottom: 15px; }
+        .btn-pc { background-color: var(--btn-pc); color: white; margin-top: 10px; }
+        
+        #btStatus { font-size: 0.8rem; text-align: center; margin-bottom: 5px; font-weight: bold; color: #95a5a6; }
+
+        /* Estilos Tabla Tally */
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border: 1px solid #eee;
+            border-radius: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            white-space: nowrap;
+        }
+        th, td {
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #eee;
+        }
+        thead th {
+            background-color: #f8f9fa;
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            color: #95a5a6;
+        }
+        tbody th {
+            position: sticky;
+            left: 0;
+            background-color: #f2f2f2;
+            z-index: 1;
+        }
+        tfoot td {
+            font-weight: bold;
+            background-color: #f0f4f8;
+        }
+        td input {
+            width: 60px;
+            padding: 5px;
+            margin: 0;
+            text-align: center;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .total-col {
+            font-weight: bold;
+            background-color: #f0f4f8;
+        }
+
+        /* --- ESTILOS DE IMPRESIÓN PC (Etiqueta 4x3) --- */
+        #printable-area { display: none; }
+
+        @media print {
+            @page { size: 4in 3in; margin: 0; }
+            html, body { margin: 0; padding: 0; background: white; }
+            body * { visibility: hidden; } /* Ocultar interfaz */
+            
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { 
+                position: absolute; 
+                left: 0; top: 0; 
+                width: 100%; 
+                display: block !important;
+            }
+
+            .label-page {
+                width: 4in;
+                height: 3in;
+                page-break-after: always;
+                position: relative;
+                box-sizing: border-box;
+                padding: 10px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                border: none;
+                overflow: hidden;
+            }
+            
+            /* Estilos internos de la etiqueta */
+            .lbl-header { width: 100%; display: flex; justify-content: space-between; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 5px; }
+            .lbl-title { font-size: 1.1rem; font-weight: bold; }
+            .lbl-sub { font-size: 2rem; font-weight: 900; line-height: 1; }
+            
+            .lbl-main { width: 100%; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; }
+            .lbl-row { font-size: 1rem; font-weight: bold; margin: 2px 0; }
+            .lbl-row span { font-weight: normal; }
+            .lbl-dims { font-size: 1.3rem; font-weight: 900; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; }
+            
+            .lbl-footer { width: 100%; display: flex; justify-content: space-between; border-top: 2px solid black; padding-top: 5px; margin-top: auto; }
+            .lbl-col-print { width: 48%; text-align: center; }
+            .lbl-val { font-size: 1.4rem; font-weight: bold; }
+            .lbl-head { font-size: 0.8rem; font-weight: bold; text-decoration: underline; }
+            
+            .lbl-barcode { height: 45px; margin: 5px 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📝 Ingreso de Tallys</h2>
+    <div id="btStatus">Estado: Desconectado</div>
+    <button class="btn-bt" onclick="conectarBluetooth()">📡 Conectar Impresora BT</button>
+
+    <div class="card">
+        <h3>Encabezado del Bulto</h3>
+        <div class="grid-3">
+            <div>
+                <label>Fecha</label>
+                <input type="date" id="fecha">
+            </div>
+            <div>
+                <label>POA</label>
+                <input type="text" id="poa" placeholder="Ej: 123-ABC">
+            </div>
+            <div>
+                <label>No. Bulto</label>
+                <input type="number" id="bultoNo" placeholder="Ej: 501">
+            </div>
+        </div>
+        <div class="grid-3">
+            <div>
+                <label>Especie</label>
+                <select id="especie"></select>
+            </div>
+            <div>
+                <label>Calidad</label>
+                <select id="calidad"></select>
+            </div>
+            <div>
+                <label>Espesor</label>
+                <select id="espesor">
+                    <option value="1">4/4</option>
+                    <option value="1.25">5/4</option>
+                    <option value="1.5">6/4</option>
+                    <option value="2">8/4</option>
+                </select>
+            </div>
+        </div>
+        <div class="grid-3">
+            <div>
+                <label>Condición</label>
+                <select id="condicion">
+                    <option value="A-D" selected>A-D</option>
+                    <option value="K-D">K-D</option>
+                </select>
+            </div>
+            <div>
+                <label>Ubicación</label>
+                <input type="text" id="ubicacion" placeholder="Ej: Patio 1">
+            </div>
+        </div>
+        <hr>
+        <div class="grid-3">
+            <div>
+                <label>Largo Mínimo (')</label>
+                <input type="number" id="largoMin" placeholder="Ej: 3">
+            </div>
+            <div>
+                <label>Largo Máximo (')</label>
+                <input type="number" id="largoMax" placeholder="Ej: 7">
+            </div>
+            <div>
+                <label>&nbsp;</label>
+                <button class="btn-main" onclick="generarTabla()" style="margin-top: 5px; padding: 12px;">Generar Tabla</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h3>Detalle de Piezas</h3>
+        <div class="table-container">
+            <table id="tallyTable">
+                <thead></thead>
+                <tbody></tbody>
+                <tfoot></tfoot>
+            </table>
+        </div>
+        <button class="btn-secondary" onclick="exportarCSV()">Exportar a CSV</button>
+        
+        <div class="grid-2" style="margin-top: 10px;">
+            <button class="btn-bt" onclick="imprimirEtiquetaActual()" style="background-color: #34495e; margin:0;">📡 Imprimir BT</button>
+            <button class="btn-pc" onclick="imprimirEtiquetaPC()" style="background-color: var(--btn-pc); margin:0;">🖥️ Imprimir PC</button>
+        </div>
+        
+        <button class="btn-main" onclick="guardarTally()" style="margin-top: 15px;">💾 Guardar en Nube</button>
+    </div>
+</div>
+
+<div id="printable-area"></div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let inventarioRemoto = [];
+    let bluetoothDevice;
+    let printCharacteristic;
+
+    // Datos de configuración
+    const especiesList = [
+        { nombre: "Maletio colorado", cientifico: "Aspidosperma megalocarpom", codigo: "ASPIME" },
+        { nombre: "Maletio blanco", cientifico: "Aspidosperma stegomersis", codigo: "ASPISP" },
+        { nombre: "Jobillo", cientifico: "Astronium graveolens", codigo: "ASTRGR" },
+        { nombre: "Ramon oreja", cientifico: "Brosimum costaricanum", codigo: "BROSCO" },
+        { nombre: "Pucte", cientifico: "Bucida buceras", codigo: "BUCIBU" },
+        { nombre: "Chaltecoco", cientifico: "Caesalpinia velutina", codigo: "CAESVE" },
+        { nombre: "Santa maria", cientifico: "Calophyllum brasiliense", codigo: "CALOBR" },
+        { nombre: "Cedro", cientifico: "Cedrela odorata", codigo: "CEDROD" },
+        { nombre: "Pochote", cientifico: "Bombacopsis spp.", codigo: "CEIBAE" },
+        { nombre: "Cericote", cientifico: "Cordia dodecandra", codigo: "CORDDO" },
+        { nombre: "Manchiche", cientifico: "Lonchocarpus castillo", codigo: "LONCCA" },
+        { nombre: "Tzalam", cientifico: "Lysiloma bahamensis", codigo: "LYSIBA" },
+        { nombre: "Chechen negro", cientifico: "Metopium brownei", codigo: "METOBR" },
+        { nombre: "Jabin", cientifico: "Piscidia piscipula", codigo: "PISCPI" },
+        { nombre: "Cola de coche", cientifico: "Pithecellobium arboreum", codigo: "PITHAR" },
+        { nombre: "Hormigo/granadillo", cientifico: "Platymiscium dimorphandrum", codigo: "PLATDI" },
+        { nombre: "Silión", cientifico: "Pouteria amygdalina", codigo: "POUTAMY" },
+        { nombre: "Amapola", cientifico: "Pseudobombax ellipticum", codigo: "PSEUEL" },
+        { nombre: "Pasaque", cientifico: "Simaruba glauca", codigo: "SIMAGL" },
+        { nombre: "Catalox", cientifico: "Swartzia lundellii", codigo: "SWARLU" },
+        { nombre: "Chichipate", cientifico: "Sweetia panamensis", codigo: "SWEEPA" },
+        { nombre: "Caoba", cientifico: "Swietenia macrophylla", codigo: "SWIEMA" },
+        { nombre: "Danto", cientifico: "Vatairea lundellii", codigo: "VATALU" },
+        { nombre: "Gesmo", cientifico: "Lysiloma spp.", codigo: "LYSIAC" }
+    ];
+
+    const calidadesList = [
+        "SELECTA Y MEJOR", "COMUN 1", "COMUN 2", "COMUNES", 
+        "COMUNES G-B", "COMUN B", "COMUN Y MEJOR", "M-R"
+    ];
+
+    window.onload = function() {
+        document.getElementById('fecha').valueAsDate = new Date();
+        cargarInventario();
+        
+        const selEspecie = document.getElementById('especie');
+        especiesList.forEach(esp => {
+            const opt = document.createElement('option');
+            opt.value = esp.nombre;
+            opt.text = esp.nombre;
+            selEspecie.appendChild(opt);
+        });
+
+        const selCalidad = document.getElementById('calidad');
+        calidadesList.forEach(cal => {
+            const opt = document.createElement('option');
+            opt.value = cal;
+            opt.text = cal;
+            selCalidad.appendChild(opt);
+        });
+
+        // Auto-reconexión Bluetooth
+        if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+            navigator.bluetooth.getDevices().then(devices => {
+                const myPrinter = devices.find(d => d.name && (d.name.includes('MTH') || d.name.includes('Printer')));
+                if (myPrinter) conectarDispositivo(myPrinter);
+            });
+        }
+    };
+
+    function cargarInventario() {
+        fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA")
+        .then(res => res.json())
+        .then(data => { inventarioRemoto = data; })
+        .catch(e => console.error("Error cargando inventario:", e));
+    }
+    
+    // --- Lógica Bluetooth ---
+    async function conectarBluetooth() {
+        try {
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb']
+            });
+            conectarDispositivo(bluetoothDevice);
+        } catch (error) { console.log(error); }
+    }
+
+    async function conectarDispositivo(device) {
+        bluetoothDevice = device;
+        const server = await bluetoothDevice.gatt.connect();
+        let characteristic;
+        try {
+            const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        } catch (e) {
+            const service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+            characteristic = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+        }
+        printCharacteristic = characteristic;
+        document.getElementById('btStatus').innerText = "Estado: ✅ Conectado a " + device.name;
+    }
+
+    async function imprimirEtiquetaActual() {
+        if (!printCharacteristic) { await conectarBluetooth(); if (!printCharacteristic) return; }
+
+        const fardo = document.getElementById('bultoNo').value;
+        const especie = document.getElementById('especie').value;
+        const calidad = document.getElementById('calidad').value;
+        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
+        const poa = document.getElementById('poa').value;
+        const totalPzs = document.getElementById('granTotalPiezas').innerText;
+        const totalPT = document.getElementById('granTotalPT').innerText;
+        
+        if (totalPzs === "0" || totalPzs === "") return alert("Tabla vacía.");
+
+        const espObj = especiesList.find(e => e.nombre === especie);
+        const espCode = espObj ? espObj.codigo : "GEN";
+        const idCode = `MD-${poa}-${fardo}-${espCode}`;
+
+        let cmd = "SIZE 101 mm, 76 mm\r\nGAP 3 mm, 0 mm\r\nCLS\r\nDENSITY 8\r\n";
+        cmd += `TEXT 40,30,"3",0,1,1,"MADERA ASERRADA"\r\n`;
+        cmd += `TEXT 500,20,"3",0,3,3,"#${fardo}"\r\n`;
+        cmd += `BARCODE 120,90,"128",80,1,0,2,4,"${idCode}"\r\n`;
+        cmd += `BAR 40,210,730,3\r\n`;
+        cmd += `TEXT 40,240,"3",0,1,1,"Especie: ${especie}"\r\n`;
+        cmd += `TEXT 40,280,"3",0,1,1,"Calidad: ${calidad}"\r\n`;
+        cmd += `TEXT 40,320,"3",0,1,1,"Grosor: ${grosor}"\r\n`;
+        cmd += `BAR 40,400,730,3\r\n`;
+        cmd += `TEXT 40,430,"2",0,1,1,"PIEZAS"\r\nTEXT 40,460,"4",0,1,1,"${totalPzs}"\r\n`;
+        cmd += `TEXT 400,430,"2",0,1,1,"PIES TABLARES"\r\nTEXT 400,460,"4",0,1,1,"${totalPT}"\r\n`;
+        cmd += "PRINT 1,1\r\n";
+
+        const encoder = new TextEncoder();
+        const encodedData = encoder.encode(cmd);
+        const CHUNK_SIZE = 50;
+        for (let i = 0; i < encodedData.length; i += CHUNK_SIZE) {
+            const chunk = encodedData.slice(i, i + CHUNK_SIZE);
+            await printCharacteristic.writeValue(chunk);
+            await new Promise(r => setTimeout(r, 20));
+        }
+        alert("✅ Enviado");
+    }
+
+    // --- Lógica de Impresión PC ---
+    function imprimirEtiquetaPC() {
+        const fardo = document.getElementById('bultoNo').value;
+        const especie = document.getElementById('especie').value;
+        const calidad = document.getElementById('calidad').value;
+        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
+        const poa = document.getElementById('poa').value;
+        const totalPzs = document.getElementById('granTotalPiezas') ? document.getElementById('granTotalPiezas').innerText : "0";
+        const totalPT = document.getElementById('granTotalPT') ? document.getElementById('granTotalPT').innerText : "0.00";
+        
+        if (totalPzs === "0" || totalPzs === "") return alert("Tabla vacía. Genera datos primero.");
+
+        const espObj = especiesList.find(e => e.nombre === especie);
+        const espCode = espObj ? espObj.codigo : "GEN";
+        const idCode = `MD-${poa}-${fardo}-${espCode}`;
+
+        const container = document.getElementById('printable-area');
+        container.innerHTML = ""; // Limpiar
+
+        const page = document.createElement('div');
+        page.className = 'label-page';
+        
+        page.innerHTML = `
+            <div class="lbl-header">
+                <div class="lbl-title">MADERA ASERRADA</div>
+                <div class="lbl-sub">#${fardo}</div>
+            </div>
+            
+            <svg class="lbl-barcode" id="bc-pc"></svg>
+            
+            <div class="lbl-main">
+                <div class="lbl-row">Especie: <span>${especie}</span></div>
+                <div class="lbl-row">Calidad: <span>${calidad}</span></div>
+                <div class="lbl-dims">Grosor: ${grosor}</div>
+            </div>
+
+            <div class="lbl-footer">
+                <div class="lbl-col-print">
+                    <div class="lbl-head">PIEZAS</div>
+                    <div class="lbl-val">${totalPzs}</div>
+                </div>
+                <div class="lbl-col-print">
+                    <div class="lbl-head">PIES TABLARES</div>
+                    <div class="lbl-val">${totalPT}</div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(page);
+
+        // Generar Barcode
+        JsBarcode("#bc-pc", idCode, {
+            format: "CODE128", displayValue: true, height: 40, width: 2, margin: 0
+        });
+
+        window.print();
+    }
+
+    function generarTabla() {
+        const largoMin = parseInt(document.getElementById('largoMin').value);
+        const largoMax = parseInt(document.getElementById('largoMax').value);
+
+        if (isNaN(largoMin) || isNaN(largoMax) || largoMin > largoMax) {
+            alert("Por favor, define un rango de largos válido.");
+            return;
+        }
+
+        const table = document.getElementById('tallyTable');
+        table.innerHTML = ''; 
+
+        const thead = table.createTHead();
+        const headerRow = thead.insertRow();
+        let th = document.createElement('th');
+        th.innerHTML = "Ancho (in)";
+        headerRow.appendChild(th);
+
+        for (let largo = largoMin; largo <= largoMax; largo++) {
+            th = document.createElement('th');
+            th.innerHTML = `${largo}' Pzs`;
+            headerRow.appendChild(th);
+        }
+        th = document.createElement('th');
+        th.innerHTML = "Total Pzs";
+        th.className = "total-col";
+        headerRow.appendChild(th);
+
+        th = document.createElement('th');
+        th.innerHTML = "Total PT";
+        th.className = "total-col";
+        headerRow.appendChild(th);
+
+        const tbody = table.createTBody();
+        for (let ancho = 1; ancho <= 23; ancho++) {
+            const row = tbody.insertRow();
+            let cell = row.insertCell();
+            cell.outerHTML = `<th>${ancho}"</th>`; 
+
+            for (let largo = largoMin; largo <= largoMax; largo++) {
+                cell = row.insertCell();
+                cell.innerHTML = `<input type="number" min="0" oninput="calcularTotales()" data-ancho="${ancho}" data-largo="${largo}">`;
+            }
+            row.insertCell().className = 'total-col';
+            row.insertCell().className = 'total-col';
+        }
+
+        const tfoot = table.createTFoot();
+        const footerRow = tfoot.insertRow();
+        footerRow.insertCell().innerHTML = "TOTALES";
+
+        for (let largo = largoMin; largo <= largoMax; largo++) {
+            footerRow.insertCell(); 
+        }
+        footerRow.insertCell().id = 'granTotalPiezas'; 
+        footerRow.insertCell().id = 'granTotalPT'; 
+        
+        calcularTotales(); 
+    }
+
+    function calcularTotales() {
+        const espesor = parseFloat(document.getElementById('espesor').value);
+        if (isNaN(espesor)) return;
+
+        const tbody = document.getElementById('tallyTable').tBodies[0];
+        const tfoot = document.getElementById('tallyTable').tFoot;
+        const numCols = document.getElementById('tallyTable').tHead.rows[0].cells.length;
+        const numLargoCols = numCols - 3;
+
+        let granTotalPiezas = 0;
+        let granTotalPT = 0;
+        const totalesPorLargo = new Array(numLargoCols).fill(0);
+
+        for (const row of tbody.rows) {
+            let totalPiezasFila = 0;
+            let totalPTFila = 0;
+            const ancho = parseInt(row.cells[0].innerText);
+
+            for (let i = 0; i < numLargoCols; i++) {
+                const input = row.cells[i + 1].getElementsByTagName('input')[0];
+                const piezas = parseInt(input.value) || 0;
+                
+                if (piezas < 0) {
+                    alert("No se permiten números negativos.");
+                    input.value = 0;
+                    continue;
+                }
+                
+                const largo = parseFloat(input.dataset.largo);
+                totalPiezasFila += piezas;
+                totalesPorLargo[i] += piezas;
+                const pt = (espesor * ancho * largo / 12) * piezas;
+                totalPTFila += pt;
+            }
+
+            row.cells[numCols - 2].innerText = totalPiezasFila;
+            row.cells[numCols - 1].innerText = totalPTFila.toFixed(2);
+
+            granTotalPiezas += totalPiezasFila;
+            granTotalPT += totalPTFila;
+        }
+
+        const footerRow = tfoot.rows[0];
+        for (let i = 0; i < numLargoCols; i++) {
+            footerRow.cells[i + 1].innerText = totalesPorLargo[i];
+        }
+        document.getElementById('granTotalPiezas').innerText = granTotalPiezas;
+        document.getElementById('granTotalPT').innerText = granTotalPT.toFixed(2);
+    }
+
+    function obtenerAbreviaturaCA(calidad) {
+        const mapa = {
+            "SELECTA Y MEJOR": "SEL&M",
+            "COMUN 1": "C1",
+            "COMUN 2": "C2",
+            "COMUNES": "COM",
+            "COMUNES G-B": "CGB",
+            "COMUN B": "CB",
+            "COMUN Y MEJOR": "C&M",
+            "M-R": "MR"
+        };
+        return mapa[calidad] || calidad.substring(0, 3).toUpperCase();
+    }
+
+    function exportarCSV() {
+        const table = document.getElementById('tallyTable');
+        if (!table.tHead.rows.length) {
+            alert("Primero genera la tabla y añade datos.");
+            return;
+        }
+
+        let csv = [];
+        
+        const headers = [
+            "No.", "FARDO", "GROSOR", "LARGO", "ANCHO", "PIES TABLARES", "PIEZAS", 
+            "POA", "CONDICION", "Fecha de ingreso", "UBICACION", "CA", 
+            "CALIDAD", "ESPECIE", "TIPO DE PRODUCTO", "ID CODE", "Fecha de Secado"
+        ];
+        csv.push(headers.join(','));
+
+        const fardo = document.getElementById('bultoNo').value;
+        const poa = document.getElementById('poa').value;
+        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
+        const condicion = document.getElementById('condicion').value;
+        const fecha = document.getElementById('fecha').value;
+        const ubicacion = document.getElementById('ubicacion').value;
+        const calidad = document.getElementById('calidad').value;
+        const especie = document.getElementById('especie').value;
+        
+        const ca = obtenerAbreviaturaCA(calidad);
+        const tipoProd = "Madera Aserrada";
+        
+        const espObj = especiesList.find(e => e.nombre === especie);
+        const espCode = espObj ? espObj.codigo : "GEN";
+        const idCode = `MD-${poa}-${fardo}-${espCode}`;
+        const fechaSecado = "";
+
+        let rowCounter = 1;
+        for (const row of table.tBodies[0].rows) {
+            const ancho = row.cells[0].innerText.replace('"', '');
+            const numCols = row.cells.length;
+            
+            for (let i = 1; i < numCols - 2; i++) {
+                const input = row.cells[i].getElementsByTagName('input')[0];
+                const piezas = parseInt(input.value) || 0;
+                
+                if (piezas > 0) {
+                    const largo = input.dataset.largo;
+                    const espesorVal = parseFloat(document.getElementById('espesor').value);
+                    const pt = (espesorVal * parseFloat(ancho) * parseFloat(largo) / 12) * piezas;
+
+                    const rowData = [
+                        rowCounter++, fardo, grosor, largo, ancho, pt.toFixed(2), piezas, poa, condicion,
+                        fecha, ubicacion, ca, calidad, especie, tipoProd, idCode, fechaSecado
+                    ];
+                    csv.push(rowData.join(','));
+                }
+            }
+        }
+
+        const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        const bultoNo = document.getElementById('bultoNo').value || 'TALLY';
+        link.setAttribute("download", `Tally_${bultoNo}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function guardarTally() {
+        const bulto = document.getElementById('bultoNo').value;
+        if (!bulto) return alert("Ingresa el Número de Bulto.");
+
+        if (inventarioRemoto.some(item => String(item.FARDO) === String(bulto))) {
+            return alert("⛔ El bulto " + bulto + " YA EXISTE. Verifica el consecutivo.");
+        }
+
+        const table = document.getElementById('tallyTable');
+        if (!table.tHead || table.tHead.rows.length === 0) return alert("Genera la tabla primero.");
+
+        const poa = document.getElementById('poa').value;
+        const especieNombre = document.getElementById('especie').value;
+        const espObj = especiesList.find(e => e.nombre === especieNombre);
+        const espCode = espObj ? espObj.codigo : "GEN";
+
+        const encabezado = {
+            fecha: document.getElementById('fecha').value,
+            poa: document.getElementById('poa').value,
+            bulto: bulto,
+            especie: document.getElementById('especie').value,
+            calidad: document.getElementById('calidad').value,
+            espesor: document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text,
+            espesorVal: parseFloat(document.getElementById('espesor').value),
+            condicion: document.getElementById('condicion').value,
+            ubicacion: document.getElementById('ubicacion').value,
+            ca: obtenerAbreviaturaCA(document.getElementById('calidad').value),
+            tipoProducto: "Madera Aserrada",
+            idCode: `MD-${poa}-${bulto}-${espCode}`,
+            fechaSecado: ""
+        };
+
+        if (String(encabezado.espesor).includes('/')) {
+            encabezado.espesor = "'" + encabezado.espesor;
+        }
+
+        const detalles = [];
+        const tbody = table.tBodies[0];
+        const numCols = table.tHead.rows[0].cells.length;
+        const numLargoCols = numCols - 3;
+
+        for (const row of tbody.rows) {
+            const ancho = parseInt(row.cells[0].innerText);
+            for (let i = 0; i < numLargoCols; i++) {
+                const input = row.cells[i + 1].getElementsByTagName('input')[0];
+                const piezas = parseInt(input.value) || 0;
+                
+                if (piezas > 0) {
+                    const largo = parseFloat(input.dataset.largo);
+                    const pt = (encabezado.espesorVal * ancho * largo / 12) * piezas;
+                    const ml = (largo * 0.3048) * piezas;
+                    const m2 = (ancho * 0.0254) * (largo * 0.3048) * piezas;
+                    const m3 = pt / 423.776;
+                    
+                    detalles.push({ ancho, largo, piezas, pt: parseFloat(pt.toFixed(2)), ml: parseFloat(ml.toFixed(2)), m2: parseFloat(m2.toFixed(3)), m3: parseFloat(m3.toFixed(4)) });
+                }
+            }
+        }
+
+        if (detalles.length === 0) return alert("Tabla vacía (0 piezas).");
+
+        const payload = { tipo: "tally_aserrada", sheetName: "MADERA ASERRADA", ...encabezado, detalles };
+
+        fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) })
+            .then(res => {
+                alert("✅ Tally guardado correctamente.");
+                inventarioRemoto.push({ FARDO: bulto });
+                const inputs = document.querySelectorAll('#tallyTable input[type="number"]');
+                inputs.forEach(input => input.value = "");
+                calcularTotales();
+                document.getElementById('bultoNo').value = parseInt(bulto) + 1;
+            })
+            .catch(err => alert("❌ Error al guardar: " + err));
+    }
+</script>
+
+</body>
+</html>

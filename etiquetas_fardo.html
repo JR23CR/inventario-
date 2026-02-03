@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Etiquetas por Fardo</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    
+    <script src="formato_etiqueta_producto_terminado.js"></script>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --text-dark: #2c3e50;
+            --btn-pc: #00897b;
+            --btn-bt: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:active { opacity: 0.8; }
+        .btn-search { background-color: var(--primary); color: white; }
+        
+        /* Botones Globales */
+        .btn-connect { background-color: #e0e6ed; color: var(--text-dark); margin-bottom: 15px; }
+        
+        .global-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
+        .btn-print-all-bt { background-color: var(--btn-bt); color: white; margin: 0; }
+        .btn-print-all-pc { background-color: var(--btn-pc); color: white; margin: 0; }
+        
+        .btn-back { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            margin-top: 20px; 
+            display: block; 
+            text-align: center; 
+            text-decoration: none; 
+            padding: 15px; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            border: 1px solid #cbd5e1;
+        }
+        .btn-back:hover { background-color: #cbd5e1; }
+
+        /* Lista de Fardos */
+        .fardo-item {
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            border: 1px solid #eee;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+        }
+        .fardo-details { margin-bottom: 10px; }
+        .fardo-title { font-weight: 900; font-size: 1.2rem; color: var(--primary); }
+        .fardo-info { font-size: 0.95rem; color: #555; margin-top: 2px; }
+        .fardo-meta { font-size: 0.85rem; color: #888; font-style: italic; }
+
+        .fardo-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        .btn-sm { padding: 8px 10px; font-size: 0.9rem; margin: 0; border-radius: 8px; }
+        .btn-bt-sm { background-color: var(--btn-bt); color: white; }
+        .btn-pc-sm { background-color: var(--btn-pc); color: white; }
+
+        @media (min-width: 600px) {
+            .fardo-item { flex-direction: row; justify-content: space-between; align-items: center; }
+            .fardo-details { margin-bottom: 0; margin-right: 20px; }
+            .fardo-actions { width: auto; display: flex; }
+            .btn-sm { width: auto; }
+        }
+
+        #results-area { display: none; }
+        
+        /* --- ESTILOS DE IMPRESIÓN PC (Solo visible al imprimir desde navegador) --- */
+        #printable-area { display: none; }
+
+        @media print {
+            @page { size: 4in 3in; margin: 0; }
+            html, body { margin: 0; padding: 0; background: white; }
+            body * { visibility: hidden; }
+            
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { 
+                display: block !important; 
+                position: absolute; 
+                left: 0; top: 0; 
+                width: 100%; 
+            }
+
+            .label-page {
+                width: 4in;
+                height: 3in;
+                page-break-after: always;
+                position: relative;
+                box-sizing: border-box;
+                padding: 10px;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                border: none;
+                overflow: hidden;
+            }
+            .label-page:last-child { page-break-after: avoid; }
+
+            /* Diseño interno visual de la etiqueta PC */
+            .lbl-header { display: flex; width: 100%; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 5px; }
+            .lbl-qr { width: 80px; height: 80px; margin-right: 10px; }
+            .lbl-title-box { flex: 1; text-align: left; }
+            .lbl-title-lote { font-size: 0.9rem; font-weight: bold; }
+            .lbl-title-fardo { font-size: 2rem; font-weight: 900; line-height: 1; }
+            
+            .lbl-body { flex: 1; width: 100%; text-align: center; display: flex; flex-direction: column; justify-content: center; }
+            .lbl-prod { font-size: 1.2rem; font-weight: bold; }
+            .lbl-spec { font-size: 1rem; font-style: italic; }
+            .lbl-dims { font-size: 1.3rem; font-weight: bold; border-top: 2px solid black; margin-top: 5px; padding-top: 5px; }
+            
+            .lbl-footer { 
+                width: 100%; display: flex; justify-content: space-around; 
+                border-top: 2px solid black; padding-top: 5px; margin-top: auto; 
+            }
+            .lbl-stat { text-align: center; }
+            .lbl-val { font-size: 1.4rem; font-weight: bold; }
+            .lbl-txt { font-size: 0.7rem; text-transform: uppercase; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏷️ Etiquetas por Fardo</h2>
+    <button class="btn-connect" onclick="conectarBluetooth()">📡 Conectar Impresora BT</button>
+    
+    <div class="card">
+        <div id="status" style="text-align:center; color:#666; font-size:0.9rem; margin-bottom:10px;">Cargando inventario...</div>
+        <label>Buscar Lote</label>
+        <input type="text" id="loteInput" placeholder="Ej: L-2024-001">
+        <button class="btn-search" onclick="buscarLote()">🔍 BUSCAR LOTE</button>
+    </div>
+
+    <div id="results-area">
+        <div class="card" style="background: #e3f2fd; border: 1px solid #bbdefb;">
+            <h3 style="margin-top:0; text-align:center; color: var(--primary);">Lote Encontrado: <span id="lote-display"></span></h3>
+            <p style="text-align:center; margin-bottom:15px;">Fardos encontrados: <b id="count-fardos">0</b></p>
+            
+            <label style="font-size:0.8rem; color:#666; display:block; margin-bottom:5px;">Impresión Masiva:</label>
+            <div class="global-actions">
+                <button class="btn-print-all-pc" onclick="imprimirTodoPC()">🖥️ Todo (PC)</button>
+                <button class="btn-print-all-bt" onclick="imprimirTodoBT()">🖨️ Todo (BT)</button>
+            </div>
+        </div>
+
+        <h3 style="margin-left: 10px; font-size: 1rem; color: #666;">Lista Individual:</h3>
+        <div id="fardos-list">
+            </div>
+    </div>
+
+    <a href="index.html" class="btn-back">⬅ Volver al Dashboard</a>
+</div>
+
+<div id="printable-area"></div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let inventarioAgrupado = [];
+    let fardosDelLote = [];
+    let bluetoothDevice;
+    let printCharacteristic;
+
+    window.onload = function() {
+        cargarDatos();
+        document.getElementById('loteInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') buscarLote();
+        });
+        
+        if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+            navigator.bluetooth.getDevices().then(devices => {
+                const myPrinter = devices.find(d => d.name === 'MTH-L1081-13E2');
+                if (myPrinter) conectarDispositivo(myPrinter);
+            });
+        }
+    };
+
+    function cargarDatos() {
+        fetch(GOOGLE_SCRIPT_URL)
+        .then(res => res.json())
+        .then(data => {
+            procesarDatos(data);
+            document.getElementById('status').innerText = `✅ Inventario cargado (${inventarioAgrupado.length} fardos)`;
+            document.getElementById('status').style.color = "green";
+        })
+        .catch(err => {
+            document.getElementById('status').innerText = "❌ Error cargando datos";
+            console.error(err);
+        });
+    }
+
+    function procesarDatos(data) {
+        const agrupado = {};
+        
+        data.forEach(row => {
+            const getVal = (keys) => {
+                if (!Array.isArray(keys)) keys = [keys];
+                for (const k of keys) {
+                    const foundKey = Object.keys(row).find(rk => rk.trim().toLowerCase() === k.toLowerCase());
+                    if (foundKey && row[foundKey] !== "") return row[foundKey];
+                }
+                return null;
+            };
+
+            const lote = getVal(['# Lote', 'Lote', 'lote']);
+            const fardoNo = getVal(['# Fardo', 'Fardo', 'fardo']);
+            
+            if (!lote || !fardoNo) return;
+
+            const key = lote + "-" + fardoNo;
+
+            if (!agrupado[key]) {
+                agrupado[key] = {
+                    lote: lote,
+                    fardoNo: fardoNo,
+                    producto: getVal(['Producto', 'Calidad', 'producto']) || '',
+                    especie: getVal(['Especie', 'especie']) || '',
+                    grosor: formatearGrosor(getVal(['Grosor "', 'Grosor', 'grosor'])),
+                    ancho: parseFloat(getVal(['Ancho "', 'Ancho', 'ancho'])) || 0,
+                    m2: 0,
+                    ml: 0,
+                    piezas: 0,
+                    detalles: []
+                };
+            }
+
+            const pzs = parseInt(getVal(['Piezas', 'Total Piezas', 'Pzs'])) || 0;
+            const largo = parseFloat(getVal(['Largo', 'Largo_Ft', 'Largo (ft)', "Largo '"])) || 0;
+            
+            if (pzs > 0 && largo > 0) {
+                agrupado[key].detalles.push({ piezas: pzs, largo: largo });
+            }
+
+            const m2Row = parseFloat(getVal(['M2', 'm2', 'M2_Total_Fardo'])) || 0;
+            if (m2Row > agrupado[key].m2) agrupado[key].m2 = m2Row;
+            
+            const mlRow = parseFloat(getVal(['ML', 'ml', 'Ml'])) || 0;
+            if (mlRow > agrupado[key].ml) agrupado[key].ml = mlRow;
+        });
+
+        inventarioAgrupado = Object.values(agrupado).map(f => {
+            f.piezas = f.detalles.reduce((acc, d) => acc + d.piezas, 0);
+            
+            // Detectar si es ML (Zocalo, Deck, Tranquilla)
+            const prod = (f.producto || '').toLowerCase();
+            const isML = prod.includes('tranquilla') || prod.includes('zocalo') || prod.includes('deck');
+            f.unidad = isML ? 'ML' : 'M2';
+
+            if (f.detalles.length > 0) {
+                let totalCalc = 0;
+                f.detalles.forEach(d => {
+                    if (isML) {
+                        totalCalc += d.piezas * (d.largo * 0.3048); // ML
+                    } else if (f.ancho > 0) {
+                        totalCalc += d.piezas * (d.largo * 0.3048) * (f.ancho * 0.0254); // M2
+                    }
+                });
+                f.m2 = parseFloat(totalCalc.toFixed(2)); // Usamos f.m2 como contenedor del valor total
+            } else {
+                // Si no hay detalles, usar el valor leído de la columna correspondiente
+                const val = isML && f.ml > 0 ? f.ml : f.m2;
+                f.m2 = parseFloat(val.toFixed(2));
+            }
+            return f;
+        });
+    }
+
+    function formatearGrosor(valor) {
+        if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
+            const fecha = new Date(valor);
+            return `${fecha.getDate()}/${fecha.getMonth() + 1}`;
+        }
+        return valor || '';
+    }
+
+    function buscarLote() {
+        const loteBusqueda = document.getElementById('loteInput').value.trim();
+        if (!loteBusqueda) return alert("Ingresa un lote");
+
+        fardosDelLote = inventarioAgrupado.filter(f => String(f.lote).toLowerCase() === String(loteBusqueda).toLowerCase());
+
+        if (fardosDelLote.length === 0) {
+            alert("No se encontraron fardos para el lote: " + loteBusqueda);
+            document.getElementById('results-area').style.display = 'none';
+            return;
+        }
+
+        fardosDelLote.sort((a, b) => parseInt(a.fardoNo) - parseInt(b.fardoNo));
+
+        document.getElementById('lote-display').innerText = loteBusqueda;
+        document.getElementById('count-fardos').innerText = fardosDelLote.length;
+        renderizarLista();
+        document.getElementById('results-area').style.display = 'block';
+    }
+
+    function renderizarLista() {
+        const container = document.getElementById('fardos-list');
+        container.innerHTML = "";
+
+        fardosDelLote.forEach((f, index) => {
+            const div = document.createElement('div');
+            div.className = 'fardo-item';
+            div.innerHTML = `
+                <div class="fardo-details">
+                    <div class="fardo-title">#${f.fardoNo}</div>
+                    <div class="fardo-info">${f.producto} <span style="color:#ccc">|</span> ${f.especie}</div>
+                    <div class="fardo-meta">${f.m2} ${f.unidad} • ${f.piezas} pzs</div>
+                </div>
+                <div class="fardo-actions">
+                    <button class="btn-sm btn-pc-sm" onclick="imprimirFardoPC(${index})">🖥️ PC</button>
+                    <button class="btn-sm btn-bt-sm" onclick="imprimirFardoBT(${index})">🖨️ BT</button>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+    }
+
+    // ==========================================
+    // LÓGICA DE IMPRESIÓN PC (HTML/CSS)
+    // ==========================================
+    
+    function crearElementoEtiqueta(f) {
+        const page = document.createElement('div');
+        page.className = 'label-page';
+
+        const medidas = `${f.grosor}" x ${f.ancho}"`;
+        
+        page.innerHTML = `
+            <div class="lbl-header">
+                <div class="lbl-qr" id="qr-${f.lote}-${f.fardoNo}"></div>
+                <div class="lbl-title-box">
+                    <div class="lbl-title-lote">LOTE: ${f.lote}</div>
+                    <div class="lbl-title-fardo">FARDO #${f.fardoNo}</div>
+                </div>
+            </div>
+            <div class="lbl-body">
+                <div class="lbl-prod">${f.producto}</div>
+                <div class="lbl-spec">${f.especie}</div>
+                <div class="lbl-dims">${medidas}</div>
+            </div>
+            <div class="lbl-footer">
+                <div class="lbl-stat">
+                    <div class="lbl-val">${f.piezas}</div>
+                    <div class="lbl-txt">PIEZAS</div>
+                </div>
+                <div class="lbl-stat">
+                    <div class="lbl-val">${f.m2}</div>
+                    <div class="lbl-txt">${f.unidad} TOTAL</div>
+                </div>
+            </div>
+        `;
+        return page;
+    }
+
+    function imprimirFardoPC(index) {
+        const fardo = fardosDelLote[index];
+        const container = document.getElementById('printable-area');
+        container.innerHTML = ""; 
+        
+        const el = crearElementoEtiqueta(fardo);
+        container.appendChild(el);
+        
+        new QRCode(el.querySelector('.lbl-qr'), {
+            text: `${fardo.lote}-${fardo.fardoNo}`,
+            width: 80, height: 80,
+            correctLevel: QRCode.CorrectLevel.M
+        });
+
+        window.print();
+    }
+
+    function imprimirTodoPC() {
+        const container = document.getElementById('printable-area');
+        container.innerHTML = "";
+        
+        fardosDelLote.forEach(f => {
+            const el = crearElementoEtiqueta(f);
+            container.appendChild(el);
+            new QRCode(el.querySelector('.lbl-qr'), {
+                text: `${f.lote}-${f.fardoNo}`,
+                width: 80, height: 80
+            });
+        });
+        
+        window.print();
+    }
+
+    // ==========================================
+    // LÓGICA DE IMPRESIÓN BLUETOOTH (EXTERNA)
+    // ==========================================
+
+    async function conectarBluetooth() {
+        try {
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+            });
+            conectarDispositivo(bluetoothDevice);
+        } catch (error) {
+            console.log("Cancelado: " + error);
+        }
+    }
+
+    async function conectarDispositivo(device) {
+        bluetoothDevice = device;
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        printCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        
+        const btn = document.querySelector('.btn-connect');
+        btn.innerText = "✅ Conectado: " + bluetoothDevice.name;
+        btn.style.backgroundColor = "#d4edda";
+        btn.style.color = "#155724";
+    }
+
+    async function imprimirFardoBT(index) {
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) return;
+        }
+        
+        try {
+            // Llamada a la función del archivo EXTERNO: formato_etiqueta_producto_terminado.js
+            await imprimirEtiquetaTerminado(printCharacteristic, fardosDelLote[index]);
+        } catch (e) {
+            alert("Error al llamar al script externo: " + e);
+            console.error(e);
+        }
+    }
+
+    async function imprimirTodoBT() {
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) return;
+        }
+
+        if (!confirm(`¿Imprimir ${fardosDelLote.length} etiquetas por Bluetooth?`)) return;
+
+        for (const f of fardosDelLote) {
+            try {
+                // Llamada a la función del archivo EXTERNO
+                await imprimirEtiquetaTerminado(printCharacteristic, f, true);
+                await new Promise(r => setTimeout(r, 500)); 
+            } catch (e) {
+                console.error("Error imprimiendo fardo " + f.fardoNo, e);
+            }
+        }
+        alert("Impresión finalizada.");
+    }
+</script>
+
+</body>
+</html>

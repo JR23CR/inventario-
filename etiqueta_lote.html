@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Etiqueta de Lote</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --text-dark: #2c3e50;
+            --btn-pc: #00897b;
+            --btn-bt: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 20px; }
+        
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            text-align: center;
+            box-sizing: border-box;
+        }
+
+        button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 15px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+        }
+        button:active { opacity: 0.8; }
+        
+        .btn-search { background-color: var(--primary); color: white; }
+        
+        /* Botones de Acción */
+        .actions-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn-print-bt { background-color: var(--btn-bt); color: white; }
+        .btn-print-pc { background-color: var(--btn-pc); color: white; }
+        
+        .btn-connect { background-color: #e0e6ed; color: var(--text-dark); margin-bottom: 15px; }
+        
+        /* ESTILO CORREGIDO PARA EL BOTÓN VOLVER */
+        .btn-back { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            margin-top: 20px; 
+            display: block; 
+            text-align: center; 
+            text-decoration: none; 
+            padding: 15px; 
+            border-radius: 10px; 
+            font-weight: bold; 
+            border: 1px solid #cbd5e1;
+        }
+        .btn-back:hover {
+            background-color: #cbd5e1;
+        }
+
+        /* Estilos de la Etiqueta (4x3 pulgadas) */
+        #label-wrapper {
+            display: none;
+            justify-content: center;
+            margin-top: 20px;
+            flex-direction: column;
+        }
+
+        #label-template {
+            background: white;
+            width: 4in;
+            height: 3in;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            border: 2px dashed #ccc;
+            position: relative;
+            overflow: hidden;
+            margin: 0 auto;
+        }
+
+        .lbl-top-row { display: flex; width: 100%; align-items: center; margin-bottom: 5px; border-bottom: 2px solid black; padding-bottom: 5px; }
+        .lbl-qr { margin-right: 15px; }
+        .lbl-lote-group { text-align: left; flex: 1; overflow: hidden; }
+        .lbl-lote-title { font-size: 1rem; font-weight: bold; color: #000; }
+        .lbl-lote-val { font-size: 2.2rem; font-weight: 900; line-height: 1; white-space: nowrap; }
+        
+        .lbl-prod { font-size: 1.2rem; font-weight: 900; margin-top: 2px; }
+        .lbl-spec { font-size: 1rem; font-style: italic; margin-bottom: 2px; }
+        .lbl-dims { font-size: 1.4rem; font-weight: bold; border-top: 2px solid black; width: 100%; padding-top: 2px; margin-top: 2px; }
+        
+        .lbl-stats { 
+            display: flex; 
+            justify-content: space-around; 
+            width: 100%; 
+            margin-top: auto; 
+            border-top: 2px solid black; 
+            padding-top: 5px;
+        }
+        .lbl-stat-box { display: flex; flex-direction: column; }
+        .lbl-stat-val { font-size: 1.4rem; font-weight: bold; }
+        .lbl-stat-lbl { font-size: 0.7rem; text-transform: uppercase; }
+
+        @media print {
+            @page { size: 4in 3in; margin: 0mm; }
+            html, body { margin: 0; padding: 0; background: white; }
+            body * { visibility: hidden; }
+            
+            #label-wrapper { display: block !important; margin: 0; }
+            #label-template, #label-template * { visibility: visible; }
+            
+            #label-template {
+                position: fixed;
+                left: 0; top: 0;
+                width: 4in; height: 3in;
+                border: none;
+                margin: 0;
+                box-shadow: none;
+            }
+            .btn-print-bt, .btn-print-pc, .container > h2, .card, .btn-back, .btn-connect { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🏷️ Etiqueta de Lote</h2>
+    <button class="btn-connect" onclick="conectarBluetooth()">📡 Conectar Impresora BT</button>
+    
+    <div class="card">
+        <div id="status" style="text-align:center; color:#666; font-size:0.9rem; margin-bottom:10px;">Cargando base de datos...</div>
+        <label>Ingresa el Número de Lote</label>
+        <input type="text" id="loteInput" placeholder="Ej: L-2024-001">
+        <button class="btn-search" onclick="generarEtiqueta()">🔍 BUSCAR DATOS</button>
+    </div>
+
+    <div id="label-wrapper">
+        <div id="label-template">
+            <div class="lbl-top-row">
+                <div id="qrcode" class="lbl-qr"></div>
+                <div class="lbl-lote-group">
+                    <div class="lbl-lote-title">LOTE:</div>
+                    <div class="lbl-lote-val" id="printLote">---</div>
+                </div>
+            </div>
+            
+            <div class="lbl-prod" id="printProducto">PRODUCTO</div>
+            <div class="lbl-spec" id="printEspecie">Especie</div>
+            <div class="lbl-dims" id="printMedidas">0 x 0</div>
+
+            <div class="lbl-stats">
+                <div class="lbl-stat-box">
+                    <span class="lbl-stat-val" id="printFardos">0</span>
+                    <span class="lbl-stat-lbl">Fardos</span>
+                </div>
+                <div class="lbl-stat-box">
+                    <span class="lbl-stat-val" id="printPiezas">0</span>
+                    <span class="lbl-stat-lbl">Piezas</span>
+                </div>
+                <div class="lbl-stat-box">
+                    <span class="lbl-stat-val" id="printM2">0.00</span>
+                    <span class="lbl-stat-lbl" id="lblTotalUnit">M2 Total</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="actions-grid">
+            <button class="btn-print-pc" onclick="imprimirPC()">🖥️ PC / USB</button>
+            <button class="btn-print-bt" onclick="imprimirBluetooth()">🖨️ Bluetooth</button>
+        </div>
+    </div>
+
+    <a href="index.html" class="btn-back">⬅ Volver al Dashboard</a>
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let inventario = [];
+    let currentLabelData = null;
+    let bluetoothDevice;
+    let printCharacteristic;
+
+    window.onload = function() {
+        cargarDatos();
+        document.getElementById('loteInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') generarEtiqueta();
+        });
+        
+        if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+            navigator.bluetooth.getDevices().then(devices => {
+                const myPrinter = devices.find(d => d.name === 'MTH-L1081-13E2');
+                if (myPrinter) {
+                    conectarDispositivo(myPrinter);
+                }
+            });
+        }
+    };
+
+    function cargarDatos() {
+        fetch(GOOGLE_SCRIPT_URL)
+        .then(res => res.json())
+        .then(data => {
+            inventario = data;
+            document.getElementById('status').innerText = `✅ Base de datos lista (${data.length} registros)`;
+            document.getElementById('status').style.color = "green";
+        })
+        .catch(err => {
+            document.getElementById('status').innerText = "❌ Error cargando datos";
+            console.error(err);
+        });
+    }
+
+    function generarEtiqueta() {
+        const lote = document.getElementById('loteInput').value.trim();
+        if (!lote) return alert("Ingresa un lote");
+
+        const fardosLote = inventario.filter(f => String(f['# Lote']) === String(lote));
+
+        if (fardosLote.length === 0) {
+            alert("❌ No se encontraron fardos para el Lote: " + lote);
+            document.getElementById('label-wrapper').style.display = 'none';
+            return;
+        }
+
+        // Contar fardos únicos (evitar duplicados por detalles de largos)
+        const uniqueFardos = new Set(fardosLote.map(f => String(f['# Fardo'] || f['Fardo'])));
+        let totalFardos = uniqueFardos.size;
+        let totalM2 = 0;
+        let totalPiezas = 0;
+
+        const info = fardosLote[0];
+        const producto = info['Producto'] || info['Calidad'] || '---';
+        const especie = info['Especie'] || '---';
+        const grosor = formatearGrosor(info['Grosor "'] || info['Grosor'] || '');
+        const ancho = info['Ancho "'] || info['Ancho'] || '';
+        const medidas = (grosor && ancho) ? `${grosor}" x ${ancho}"` : 'Varios';
+        
+        // Detectar si es producto por ML
+        const prodName = (producto || '').toLowerCase();
+        const isML = prodName.includes('tranquilla') || prodName.includes('zocalo') || prodName.includes('deck');
+        const unitLabel = isML ? "ML" : "M2";
+
+        fardosLote.forEach(f => {
+            // Intentar leer ML si es producto ML, sino  M-2
+            let val = isML ? parseFloat(f['ML'] || f['ml'] || f['Ml']) : parseFloat(f['M2'] || f['m2']);
+            // Si es ML pero viene vacío (datos viejos), intentar leer M2 como respaldo
+            if (isML && isNaN(val)) val = parseFloat(f['M2'] || f['m2']);
+            
+            totalM2 += (val || 0);
+            let pzs = parseInt(f['Piezas']) || parseInt(f['Total Piezas']) || 0;
+            totalPiezas += pzs;
+        });
+        
+        currentLabelData = {
+            lote: lote,
+            producto: producto,
+            especie: especie,
+            medidas: medidas,
+            fardos: totalFardos,
+            piezas: totalPiezas,
+            m2: totalM2.toFixed(2),
+            isML: isML // Guardamos flag para impresión
+        };
+
+        document.getElementById('printLote').innerText = lote;
+        document.getElementById('printProducto').innerText = producto;
+        document.getElementById('printEspecie').innerText = especie;
+        document.getElementById('printMedidas').innerText = medidas;
+        document.getElementById('printFardos').innerText = totalFardos;
+        document.getElementById('printPiezas').innerText = totalPiezas > 0 ? totalPiezas : "-";
+        document.getElementById('printM2').innerText = totalM2.toFixed(2);
+        document.getElementById('lblTotalUnit').innerText = unitLabel + " Total";
+
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = "";
+        new QRCode(qrContainer, {
+            text: lote,
+            width: 90,
+            height: 90,
+            colorDark : "#000000",
+            colorLight : "#ffffff",
+            correctLevel : QRCode.CorrectLevel.H
+        });
+
+        document.getElementById('label-wrapper').style.display = 'flex';
+    }
+
+    function formatearGrosor(valor) {
+        if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
+            const fecha = new Date(valor);
+            return `${fecha.getDate()}/${fecha.getMonth() + 1}`;
+        }
+        return valor;
+    }
+
+    function imprimirPC() {
+        if (!currentLabelData) return alert("Primero genera una etiqueta.");
+        window.print();
+    }
+
+    async function imprimirBluetooth() {
+        if (!currentLabelData) return alert("Primero genera una etiqueta.");
+
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) {
+                alert("No hay impresora Bluetooth conectada.");
+                return;
+            }
+        }
+
+        const d = currentLabelData;
+        const encoder = new TextEncoder();
+        let cmd = "";
+        const unitText = d.isML ? "ML TOTAL" : "M2 TOTAL";
+
+        cmd += "SIZE 4,3\r\n";
+        cmd += "GAP 0.12,0\r\n";
+        cmd += "DIRECTION 1\r\n";
+        cmd += "CLS\r\n";
+        cmd += `QRCODE 50,150,L,10,A,0,M2,S7,"${d.lote}"\r\n`;
+        cmd += `TEXT 350,60,"3",0,2,2,"LOTE:"\r\n`;
+        cmd += `TEXT 380,120,"3",0,4,4,"${d.lote}"\r\n`; 
+        cmd += `TEXT 400,280,"3",0,1,1,2,"${d.producto}"\r\n`;
+        cmd += `TEXT 400,320,"3",0,1,1,2,"${d.especie}"\r\n`;
+        cmd += `TEXT 400,360,"3",0,1,1,2,"${d.medidas}"\r\n`;
+        cmd += `BAR 20,430,760,3\r\n`;
+        cmd += `TEXT 130,450,"2",0,1,1,2,"FARDOS"\r\n`;
+        cmd += `TEXT 400,450,"2",0,1,1,2,"PIEZAS"\r\n`;
+        cmd += `TEXT 670,450,"2",0,1,1,2,"${unitText}"\r\n`;
+        cmd += `TEXT 130,480,"3",0,2,2,"${d.fardos}"\r\n`;
+        cmd += `TEXT 400,480,"3",0,2,2,"${d.piezas}"\r\n`;
+        cmd += `TEXT 630,480,"3",0,2,2,"${d.m2}"\r\n`;
+        cmd += "PRINT 1,1\r\n";
+
+        try {
+            const encodedData = encoder.encode(cmd);
+            const CHUNK_SIZE = 50; 
+            for (let i = 0; i < encodedData.length; i += CHUNK_SIZE) {
+                await printCharacteristic.writeValue(encodedData.slice(i, i + CHUNK_SIZE));
+                await new Promise(resolve => setTimeout(resolve, 20));
+            }
+        } catch (e) {
+            alert("Error enviando a Bluetooth: " + e);
+            printCharacteristic = null;
+        }
+    }
+
+    async function conectarBluetooth() {
+        try {
+            bluetoothDevice = await navigator.bluetooth.requestDevice({
+                acceptAllDevices: true,
+                optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb']
+            });
+            await conectarDispositivo(bluetoothDevice);
+        } catch (error) {
+            console.log("Cancelado o Error: " + error);
+        }
+    }
+
+    async function conectarDispositivo(device) {
+        bluetoothDevice = device;
+        const server = await bluetoothDevice.gatt.connect();
+        const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+        printCharacteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+        
+        const btn = document.querySelector('.btn-connect');
+        btn.innerText = "✅ Conectado: " + bluetoothDevice.name;
+        btn.style.backgroundColor = "#d4edda";
+        btn.style.color = "#155724";
+    }
+</script>
+
+</body>
+</html>

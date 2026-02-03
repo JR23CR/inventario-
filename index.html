@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Administrativo Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Iconos Lucide -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- SheetJS para Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- ExcelJS y FileSaver para reportes avanzados con estilo -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        /* Ocultar scrollbar en la sidebar pero permitir scroll */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Animación suave para entrada de contenido */
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Personalización de scrollbar para el modal */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+
+        /* Estilos para Reporte Detallado (Estilo Hoja de Cálculo Profesional) */
+        .report-header { background-color: #6B8E23; color: white; border: 1px solid #556B2F; } /* Verde Oliva */
+        .report-sub-header { background-color: #556B2F; color: white; border: 1px solid #3e4f22; }
+        .report-cell { background-color: #FEFEE9; border: 1px solid #E6E6CA; color: #333; } /* Beige claro */
+        .report-row:hover td { background-color: #F0E68C !important; transition: background-color 0.2s; }
+        .report-total-row { background-color: #BDB76B; font-weight: bold; color: #2c3e50; }
+        
+        @media print {
+            @page { size: landscape; margin: 10mm; }
+            body { visibility: hidden; }
+            
+            /* Configuración para Modal de Reporte (Prioridad) */
+            #report-modal:not(.hidden) {
+                visibility: visible; position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: white; z-index: 9999;
+            }
+            #report-modal:not(.hidden) * { visibility: visible; }
+
+            /* Configuración para Modal Genérico (Solo si Reporte está oculto) */
+            #modalContent:not(.hidden) {
+                visibility: visible; position: absolute; left: 0; top: 0; width: 100%; height: 100%; background: white; z-index: 9998;
+            }
+            #modalContent:not(.hidden) * { visibility: visible; }
+
+            /* Ocultar elementos de interfaz */
+            .no-print, button, #modal-footer-actions, #report-actions, #sidebar, header { display: none !important; }
+            
+            /* Ajustes de tabla */
+            .overflow-auto { overflow: visible !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-800 font-sans antialiased overflow-hidden">
+
+    <div class="flex h-screen">
+        
+        <!-- Backdrop para Móvil (Fondo oscuro al abrir menú) -->
+        <div id="sidebar-backdrop" class="fixed inset-0 z-20 bg-black/50 transition-opacity opacity-0 pointer-events-none lg:hidden" onclick="toggleSidebar()"></div>
+
+        <!-- Sidebar Fija -->
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-64 bg-slate-900 text-white transform -translate-x-full transition-transform duration-300 ease-in-out lg:translate-x-0 lg:static lg:inset-0 flex flex-col shadow-2xl">
+            <!-- Logo / Header -->
+            <div class="flex items-center justify-center h-16 bg-slate-950 shadow-md border-b border-slate-800">
+                <span class="text-xl font-bold tracking-wider uppercase flex items-center gap-2 text-white">
+                    <i data-lucide="box" class="w-6 h-6 text-blue-500"></i> Inventario
+                </span>
+            </div>
+
+            <!-- Navegación -->
+            <nav class="flex-1 px-4 py-6 space-y-2 overflow-y-auto no-scrollbar">
+                <a href="#" onclick="loadView('home', this)" class="nav-item flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 bg-blue-600 text-white shadow-lg shadow-blue-900/20">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5"></i>
+                    <span class="font-medium">Inicio</span>
+                </a>
+                
+                <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Producto Terminado</div>
+
+                <a href="#" onclick="loadView('registro.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="clipboard-pen-line" class="w-5 h-5"></i>
+                    <span>Registro</span>
+                </a>
+
+                <a href="#" onclick="loadView('etiqueta_lote.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="tag" class="w-5 h-5"></i>
+                    <span>Etiqueta Lote</span>
+                </a>
+
+                <a href="#" onclick="loadView('etiquetas_fardo.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="qr-code" class="w-5 h-5"></i>
+                    <span>Etiquetas Fardos</span>
+                </a>
+
+                <a href="#" onclick="loadView('checklist.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="check-square" class="w-5 h-5"></i>
+                    <span>Checklist</span>
+                </a>
+
+                <a href="#" onclick="loadView('verificador_inab.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="file-check" class="w-5 h-5"></i>
+                    <span>Verificador INAB</span>
+                </a>
+
+                <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Madera Aserrada</div>
+
+                <a href="#" onclick="loadView('ingreso_tally.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="clipboard-list" class="w-5 h-5"></i>
+                    <span>Ingreso Tally</span>
+                </a>
+
+                <a href="#" onclick="loadView('base_datos_aserrada.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="database" class="w-5 h-5"></i>
+                    <span>Base de Datos</span>
+                </a>
+
+                <a href="#" onclick="loadView('etiquetas_aserrada.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="tags" class="w-5 h-5"></i>
+                    <span>Etiquetas</span>
+                </a>
+
+                <a href="#" onclick="loadView('buscar_rebajar.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="search-x" class="w-5 h-5"></i>
+                    <span>Buscar / Rebajar</span>
+                </a>
+
+                <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Geolocalizar</div>
+
+                <a href="#" onclick="loadView('mapa_ubicaciones.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="map" class="w-5 h-5"></i>
+                    <span>Mapa Ubicaciones</span>
+                </a>
+
+                <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Herramientas</div>
+
+                <a href="#" onclick="loadView('prueba_impresion.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="wrench" class="w-5 h-5"></i>
+                    <span>Prueba de Impresión</span>
+                </a>
+            </nav>
+
+            <!-- Footer Sidebar -->
+            <div class="p-4 bg-slate-950 border-t border-slate-800">
+                <button onclick="cerrarSesion()" class="flex items-center gap-3 px-4 py-3 w-full text-red-400 rounded-lg hover:bg-red-500/10 transition-colors">
+                    <i data-lucide="log-out" class="w-5 h-5"></i>
+                    <span class="font-medium">Cerrar Sesión</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Contenedor Principal -->
+        <div class="flex-1 flex flex-col min-w-0 h-screen">
+            
+            <!-- Header Móvil -->
+            <header class="bg-white shadow-sm lg:hidden flex items-center justify-between px-4 h-16 z-10 flex-shrink-0">
+                <button onclick="toggleSidebar()" class="text-slate-600 focus:outline-none p-2 hover:bg-gray-100 rounded-md">
+                    <i data-lucide="menu" class="w-6 h-6"></i>
+                </button>
+                <div class="flex flex-col items-center">
+                    <span id="mobile-title" class="font-bold text-slate-800 text-sm">Inicio</span>
+                    <span id="user-greeting-mobile" class="text-[10px] text-blue-600 font-black tracking-tighter"></span>
+                </div>
+                <div class="w-10"></div>
+            </header>
+
+            <!-- Área de Contenido -->
+            <main class="flex-1 overflow-hidden bg-gray-50 relative flex flex-col">
+                <div id="desktop-greeting-bar" class="hidden lg:flex bg-white border-b border-gray-200 px-8 py-4 justify-between items-center">
+                    <div id="role-badge" class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest bg-slate-100 text-slate-600">---</div>
+                    <span id="user-greeting-desktop" class="text-sm font-bold text-slate-800 flex items-center gap-2"></span>
+                </div>
+                
+                <!-- VISTA INICIO (Dashboard Stats) -->
+                <div id="view-home" class="h-full overflow-y-auto p-4 lg:p-8 fade-in">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+                        <div>
+                            <h1 class="text-2xl font-bold text-slate-800">Resumen General</h1>
+                            <p class="text-slate-500 text-sm">Bienvenido al panel de control de inventario.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <button id="btn-export-dashboard" onclick="exportarDatos()" class="px-4 py-2 bg-white border border-gray-200 text-slate-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors shadow-sm flex items-center gap-2">
+                                <i data-lucide="download" class="w-4 h-4"></i> Exportar Datos
+                            </button>
+                            <button onclick="cerrarSesion()" class="px-4 py-2 bg-red-50 border border-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors shadow-sm flex items-center gap-2">
+                                <i data-lucide="log-out" class="w-4 h-4"></i> Cerrar Sesión
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tarjetas de Estadísticas Dinámicas -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        <!-- Card 1: Piso Barnizado -->
+                        <div onclick="openModal('Piso Barnizado')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="package" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Piso Barnizado (m²)</h3>
+                            <p id="total-barnizado" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+
+                        <!-- Card 2: Piso Crudo -->
+                        <div onclick="openModal('Piso Crudo')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-purple-50 text-purple-600 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="layers" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Piso Crudo (m²)</h3>
+                            <p id="total-crudo" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+
+                        <!-- Card 3: Tranquilla -->
+                        <div onclick="openModal('Tranquilla')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg group-hover:bg-emerald-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="ruler" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Tranquilla (ml)</h3>
+                            <p id="total-tranquilla" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+                        
+                        <!-- Card 5: Deck -->
+                        <div onclick="openModal('Deck')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-orange-50 text-orange-600 rounded-lg group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="layout" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Deck (ml)</h3>
+                            <p id="total-deck" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+
+                        <!-- Card 6: Zocalo -->
+                        <div onclick="openModal('Zocalo')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-pink-50 text-pink-600 rounded-lg group-hover:bg-pink-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="panel-bottom" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Zocalo (ml)</h3>
+                            <p id="total-zocalo" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+
+                        <!-- Card 4: Madera Aserrada -->
+                        <div onclick="openModal('Madera Aserrada')" class="cursor-pointer bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition-all duration-300 group">
+                            <div class="flex items-center justify-between mb-4">
+                                <div class="p-3 bg-green-50 text-green-600 rounded-lg group-hover:bg-green-600 group-hover:text-white transition-colors">
+                                    <i data-lucide="database" class="w-6 h-6"></i>
+                                </div>
+                            </div>
+                            <h3 class="text-slate-500 text-sm font-medium">Madera Aserrada (PT)</h3>
+                            <p id="total-aserrada" class="text-2xl font-bold text-slate-800 mt-1">Cargando...</p>
+                        </div>
+                    </div>
+
+
+                </div>
+
+                <!-- CONTENEDOR IFRAME (Para cargar módulos externos) -->
+                <div id="view-frame-container" class="hidden w-full h-full">
+                    <iframe id="content-frame" class="w-full h-full border-none" src="" allow="bluetooth"></iframe>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- COMPONENTE MODAL (Existencias Piso Barnizado) -->
+    <!-- Backdrop -->
+    <div id="modalBackdrop" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden opacity-0 transition-opacity duration-300 ease-out" onclick="closeModal()"></div>
+
+    <!-- Modal Container -->
+    <div id="modalContent" class="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none hidden">
+        <!-- Modal Panel -->
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl transform scale-95 opacity-0 transition-all duration-300 ease-out pointer-events-auto flex flex-col max-h-[90vh] border border-gray-100">
+            
+            <!-- Header -->
+            <div class="bg-emerald-600 p-6 rounded-t-2xl flex justify-between items-start relative overflow-hidden">
+                <!-- Decoración de fondo -->
+                <div class="absolute top-0 right-0 -mt-4 -mr-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
+                
+                <div class="text-white z-10">
+                    <h2 class="text-xl md:text-2xl font-bold leading-tight tracking-tight">EXISTENCIA DE PRODUCTO</h2>
+                    <p class="text-emerald-100 text-sm mt-1 font-medium tracking-wide opacity-90">POR ESPECIE Y DIMENSIÓN</p>
+                    <div class="inline-flex items-center gap-1.5 mt-3 px-3 py-1 bg-emerald-700/50 rounded-full text-xs text-emerald-50 border border-emerald-500/30">
+                        <i data-lucide="calendar" class="w-3 h-3"></i> 
+                        <span id="modal-date">---</span>
+                    </div>
+                </div>
+                <button onclick="closeModal()" class="text-emerald-100 hover:text-white hover:bg-white/20 rounded-full p-2 transition-all z-10 focus:outline-none focus:ring-2 focus:ring-white/50">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </div>
+
+            <!-- Body (Scrollable Table) -->
+            <div class="p-6 overflow-auto custom-scrollbar bg-gray-50/50">
+                <!-- Contenedor para Selección de Especies (Madera Aserrada) -->
+                <div id="species-view" class="hidden">
+                    <div class="mb-4">
+                        <input type="text" id="species-search" placeholder="🔍 Buscar especie..." class="w-full p-3 border border-gray-200 rounded-lg shadow-sm focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none transition-all" oninput="filterSpeciesGrid()">
+                    </div>
+                    <div id="species-grid-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Botones de especies generados dinámicamente -->
+                    </div>
+                </div>
+
+                <!-- Contenedor para Tabla Estándar (Piso) -->
+                <div class="overflow-hidden border border-gray-200 rounded-xl shadow-sm bg-white">
+                    <table id="generic-modal-table" class="min-w-full text-sm text-left">
+                        <thead class="bg-gray-50 text-gray-600 font-bold uppercase tracking-wider border-b border-gray-200 text-xs">
+                            <!-- Encabezados dinámicos -->
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 bg-white">
+                            <!-- Filas dinámicas generadas por JS -->
+                        </tbody>
+                        <tfoot class="bg-gray-50 font-bold text-gray-800 border-t-2 border-emerald-100">
+                            <!-- Totales generados por JS -->
+                        </tfoot>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div id="modal-footer-actions" class="bg-white p-4 rounded-b-2xl border-t border-gray-100 flex justify-end gap-3">
+                <button onclick="closeModal()" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:text-gray-800 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200">Cerrar</button>
+                <button onclick="exportGenericModalToExcel()" class="px-5 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium transition-colors shadow-sm flex items-center gap-2"><i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Excel</button>
+                <button onclick="window.print()" class="px-5 py-2.5 bg-slate-800 text-white rounded-lg hover:bg-slate-900 font-medium transition-colors shadow-sm flex items-center gap-2"><i data-lucide="printer" class="w-4 h-4"></i> Imprimir</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FULL SCREEN REPORTE DETALLADO (ESPECIES) -->
+    <div id="report-modal" class="fixed inset-0 z-[60] hidden bg-white overflow-auto fade-in">
+        <div class="p-8 min-h-screen flex flex-col">
+            <!-- Header Modal -->
+            <div class="flex justify-between items-start mb-8 border-b-4 border-emerald-700 pb-4">
+                <div>
+                    <h1 id="report-title" class="text-3xl font-black text-emerald-900 tracking-tight uppercase">INVENTARIO TOTAL DE MADERA</h1>
+                    <h2 class="text-xl font-bold text-emerald-700 mt-1">CLASIFICADA POR GROSOR, LARGO Y CALIDAD</h2>
+                    <p class="text-slate-500 font-medium mt-2 capitalize" id="report-date">Fecha: ---</p>
+                </div>
+                <div class="flex flex-col items-end gap-4">
+                    <div class="text-right">
+                        <h3 class="text-2xl font-bold text-slate-800">GIBOR, S.A.</h3>
+                        <p class="text-xs text-slate-400">Reporte Oficial</p>
+                    </div>
+                    <div id="report-actions" class="flex gap-2 no-print">
+                        <button onclick="exportReportToExcel()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-2 shadow-sm">
+                            <i data-lucide="file-spreadsheet" class="w-4 h-4"></i> Descargar Excel
+                        </button>
+                        <button onclick="window.print()" class="px-4 py-2 bg-slate-800 text-white rounded hover:bg-slate-700 flex items-center gap-2">
+                            <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Reporte
+                        </button>
+                        <button onclick="closeReportModal()" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 flex items-center gap-2">
+                            <i data-lucide="x" class="w-4 h-4"></i> Cerrar
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla Container -->
+            <div class="flex-1 overflow-x-auto shadow-2xl rounded-lg border border-emerald-100">
+                <table id="report-table" class="w-full text-sm text-right border-collapse">
+                    <thead class="text-xs uppercase sticky top-0 z-10 shadow-md">
+                        <!-- Headers generados por JS -->
+                        <tr id="report-header-row-1"></tr>
+                        <tr id="report-header-row-2"></tr>
+                    </thead>
+                    <tbody id="report-body" class="text-slate-700 font-mono">
+                        <!-- Data -->
+                    </tbody>
+                    <tfoot id="report-foot" class="sticky bottom-0 z-10 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)]"></tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- PANTALLA DE LOGIN -->
+    <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4 overflow-hidden transition-all duration-500">
+        <div class="absolute top-[-10%] left-[-10%] w-96 h-96 bg-blue-600/20 rounded-full blur-[120px]"></div>
+        <div class="absolute bottom-[-10%] right-[-10%] w-96 h-96 bg-emerald-600/20 rounded-full blur-[120px]"></div>
+    
+        <div class="relative bg-white/5 backdrop-blur-xl p-8 rounded-[2.5rem] border border-white/10 shadow-2xl w-full max-w-md transform transition-all">
+            <div class="text-center mb-10">
+                <div class="inline-flex p-4 bg-gradient-to-br from-blue-500 to-emerald-500 rounded-3xl shadow-lg mb-6 rotate-3">
+                    <i data-lucide="shield-check" class="w-10 h-10 text-white"></i>
+                </div>
+                <h1 class="text-4xl font-black text-white tracking-tighter">GIBOR, <span class="text-blue-500">S.A.</span></h1>
+                <p class="text-slate-400 font-medium mt-2">SISTEMA INVENTARIOS</p>
+            </div>
+    
+            <div class="space-y-6">
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase ml-2">Usuario</label>
+                    <div class="relative group">
+                        <i data-lucide="user" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors"></i>
+                        <input type="text" id="user-login" placeholder="Ej: admin" 
+                            class="w-full bg-slate-900/50 border border-slate-700 text-white p-4 pl-12 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                    </div>
+                </div>
+    
+                <div class="space-y-2">
+                    <label class="text-xs font-bold text-slate-400 uppercase ml-2">Contraseña</label>
+                    <div class="relative group">
+                        <i data-lucide="lock" class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-500 group-focus-within:text-blue-500 transition-colors"></i>
+                        <input type="password" id="pass-login" placeholder="••••••••" 
+                            class="w-full bg-slate-900/50 border border-slate-700 text-white p-4 pl-12 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+                    </div>
+                </div>
+    
+                <button onclick="intentarLogin()" 
+                    class="w-full bg-blue-600 hover:bg-blue-500 text-white p-4 rounded-2xl font-black text-lg shadow-xl shadow-blue-600/20 active:scale-[0.98] transition-all flex items-center justify-center gap-3">
+                    ENTRAR AL SISTEMA
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
+            </div>
+    
+            <p id="login-error" class="text-red-400 text-sm mt-6 hidden text-center font-bold bg-red-400/10 py-2 rounded-lg border border-red-400/20">
+                ⚠️ Credenciales inválidas
+            </p>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons(); // Inicializar iconos
+
+        // Permitir login con tecla Enter
+        document.getElementById('pass-login').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') intentarLogin();
+        });
+        document.getElementById('user-login').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') document.getElementById('pass-login').focus();
+        });
+
+        const sidebar = document.getElementById('sidebar');
+        const backdrop = document.getElementById('sidebar-backdrop');
+        const homeView = document.getElementById('view-home');
+        const frameContainer = document.getElementById('view-frame-container');
+        const frame = document.getElementById('content-frame');
+        const mobileTitle = document.getElementById('mobile-title');
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+        let globalDataPTE = []; // Variable global para almacenar datos
+        let globalDataMDA = []; // Variable global para Madera Aserrada
+
+        function loadDashboardData() {
+            const fetchPTE = fetch(GOOGLE_SCRIPT_URL + "?sheet=PRODUCTO TERMINADO").then(res => res.json());
+            const fetchMDA = fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA").then(res => res.json());
+
+            Promise.all([fetchPTE, fetchMDA])
+                .then(([dataPTE, dataMDA]) => {
+                    globalDataPTE = dataPTE; // Guardar datos para filtrado posterior
+                    globalDataMDA = dataMDA; // Guardar datos aserrada
+
+                    // Procesar Producto Terminado
+                    let totalCrudoM2 = 0;
+                    let totalBarnizadoM2 = 0;
+                    let totalTranquillaML = 0;
+                    let totalDeckML = 0;
+                    let totalZocaloML = 0;
+
+                    // Helper para obtener valor numérico robusto (busca en varias llaves y limpia comas)
+                    const getNum = (row, keys) => {
+                        for (const k of keys) {
+                            if (row[k] !== undefined) {
+                                let val = row[k];
+                                if (typeof val === 'string') val = val.replace(/,/g, '');
+                                return parseFloat(val) || 0;
+                            }
+                        }
+                        return 0;
+                    };
+
+                    dataPTE.forEach(row => {
+                        // Normalizamos nombres para evitar errores por mayúsculas/minúsculas
+                        const producto = (row['Producto'] || row['PRODUCTO'] || row['Calidad'] || '').toLowerCase();
+                        // Leemos la nueva columna 'Calidad' (o CALIDAD)
+                        const calidad = (row['Calidad'] || row['CALIDAD'] || '').trim().toLowerCase(); 
+                        
+                        const metros = getNum(row, ['M2', 'm2', 'Metros', 'M2_Total_Fardo', 'M2 ', 'm2 ']);
+                        const unidad = (row['Unidad'] || row['UNIDAD'] || 'm2').toLowerCase();
+
+                        // --- LÓGICA DE FILTRADO (SOLO PRIMERA) ---
+                        if (producto.includes('crudo')) {
+                            // Solo suma si la calidad es "primera"
+                            if (calidad === 'primera') totalCrudoM2 += metros;
+                        } else if (producto.includes('barnizado')) {
+                            if (calidad === 'primera') totalBarnizadoM2 += metros;
+                        } else if (producto.includes('deck')) {
+                            // Deck ahora en ML
+                            const valML = getNum(row, ['ML', 'ml', 'Ml']);
+                            if (calidad === 'primera') totalDeckML += (valML > 0) ? valML : metros;
+                        } else if (producto.includes('zocalo')) {
+                            // Leer columna ML si existe (nuevo script), sino usar M2
+                            const valML = getNum(row, ['ML', 'ml', 'Ml']);
+                            totalZocaloML += (valML > 0) ? valML : metros;
+                        } else if (producto.includes('tranquilla')) {
+                            const valML = getNum(row, ['ML', 'ml', 'Ml']);
+                            if (valML > 0) totalTranquillaML += valML;
+                            else if (unidad === 'ml' || producto.includes('tranquilla')) totalTranquillaML += metros;
+                        }
+                    });
+
+                    // Procesar Madera Aserrada
+                    let totalPiesTablares = 0;
+                    dataMDA.forEach(row => {
+                        const pt = getNum(row, ['PIES TABLARES', 'Pies Tablares', 'PT', 'pt']);
+                        totalPiesTablares += pt;
+                    });
+
+                    // Actualizar Tarjetas
+                    document.getElementById('total-barnizado').innerText = totalBarnizadoM2.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m²";
+                    document.getElementById('total-crudo').innerText = totalCrudoM2.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m²";
+                    document.getElementById('total-tranquilla').innerText = totalTranquillaML.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ml";
+                    document.getElementById('total-deck').innerText = totalDeckML.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ml";
+                    document.getElementById('total-zocalo').innerText = totalZocaloML.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ml";
+                    document.getElementById('total-aserrada').innerText = totalPiesTablares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " PT";
+                })
+                .catch(error => {
+                    console.error("Error cargando datos del dashboard:", error);
+                    const errorMsg = "Error";
+                    document.getElementById('total-barnizado').innerText = errorMsg;
+                    document.getElementById('total-crudo').innerText = errorMsg;
+                    document.getElementById('total-tranquilla').innerText = errorMsg;
+                    document.getElementById('total-deck').innerText = errorMsg;
+                    document.getElementById('total-zocalo').innerText = errorMsg;
+                    document.getElementById('total-aserrada').innerText = errorMsg;
+                });
+        }
+
+        async function exportarDatos() {
+            const btn = document.querySelector('button[onclick="exportarDatos()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Exportando...';
+            lucide.createIcons();
+            btn.disabled = true;
+
+            const fetchPTE = fetch(GOOGLE_SCRIPT_URL + "?sheet=PRODUCTO TERMINADO").then(res => res.json());
+            const fetchMDA = fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA").then(res => res.json());
+
+            try {
+                const [dataPTE, dataMDA] = await Promise.all([fetchPTE, fetchMDA]);
+                
+                const workbook = new ExcelJS.Workbook();
+                const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A237E' } }, alignment: { horizontal: 'center' } };
+                const pageSetup = { paperSize: 1, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, margins: { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 } };
+
+                // Hoja 1: Producto Terminado
+                if (dataPTE && dataPTE.length > 0) {
+                    const wsPTE = workbook.addWorksheet("Producto Terminado");
+                    wsPTE.pageSetup = pageSetup;
+                    
+                    const headers = Object.keys(dataPTE[0]);
+                    wsPTE.addRow(headers).eachCell(cell => Object.assign(cell, headerStyle));
+                    dataPTE.forEach(row => wsPTE.addRow(Object.values(row)));
+                    wsPTE.columns.forEach(col => { col.width = 15; });
+                }
+
+                // Hoja 2: Madera Aserrada
+                if (dataMDA && dataMDA.length > 0) {
+                    const wsMDA = workbook.addWorksheet("Madera Aserrada");
+                    wsMDA.pageSetup = pageSetup;
+                    
+                    const headers = Object.keys(dataMDA[0]);
+                    wsMDA.addRow(headers).eachCell(cell => Object.assign(cell, headerStyle));
+                    dataMDA.forEach(row => wsMDA.addRow(Object.values(row)));
+                    wsMDA.columns.forEach(col => { col.width = 15; });
+                }
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), "Resumen_Inventario_Completo.xlsx");
+
+            } catch (err) {
+                console.error(err);
+                alert("Error al exportar datos.");
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+        }
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('-translate-x-full');
+            backdrop.classList.toggle('opacity-0');
+            backdrop.classList.toggle('pointer-events-none');
+        }
+
+        function loadView(url, element) {
+            // Actualizar estilos de navegación
+            document.querySelectorAll('.nav-item').forEach(el => {
+                el.classList.remove('bg-blue-600', 'text-white', 'shadow-lg', 'shadow-blue-900/20');
+                el.classList.add('text-slate-400', 'hover:bg-slate-800', 'hover:text-white');
+            });
+            element.classList.remove('text-slate-400', 'hover:bg-slate-800');
+            element.classList.add('bg-blue-600', 'text-white', 'shadow-lg', 'shadow-blue-900/20');
+
+            if(mobileTitle) mobileTitle.innerText = element.querySelector('span').innerText;
+
+            if (window.innerWidth < 1024) {
+                toggleSidebar();
+            }
+
+            // Módulos que requieren Bluetooth (cargar sin iframe)
+            const modulosConBluetooth = ['etiquetas_fardo.html', 'etiqueta_lote.html', 'etiquetas_aserrada.html', 'registro.html'];
+            
+            if (modulosConBluetooth.includes(url)) {
+                homeView.classList.add('hidden');
+                frameContainer.classList.add('hidden');
+                
+                // Redirigir a la página directamente
+                window.location.href = url;
+                return;
+            }
+
+            if (url === 'home') {
+                homeView.classList.remove('hidden');
+                frameContainer.classList.add('hidden');
+                frame.src = '';
+                loadDashboardData();
+            } else {
+                homeView.classList.add('hidden');
+                frameContainer.classList.remove('hidden');
+                frame.src = url;
+            }
+        }
+
+        function openModal(type) {
+            const backdrop = document.getElementById('modalBackdrop');
+            const content = document.getElementById('modalContent');
+            const panel = content.querySelector('div');
+
+            renderModalContent(type); // Cargar datos dinámicos
+
+            backdrop.classList.remove('hidden');
+            content.classList.remove('hidden');
+            void content.offsetWidth; // Trigger reflow
+            backdrop.classList.remove('opacity-0');
+            panel.classList.remove('scale-95', 'opacity-0');
+            panel.classList.add('scale-100', 'opacity-100');
+        }
+
+        function closeModal() {
+            const backdrop = document.getElementById('modalBackdrop');
+            const content = document.getElementById('modalContent');
+            const panel = content.querySelector('div');
+            backdrop.classList.add('opacity-0');
+            panel.classList.remove('scale-100', 'opacity-100');
+            panel.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => { backdrop.classList.add('hidden'); content.classList.add('hidden'); }, 300);
+        }
+
+        function renderModalContent(type) {
+            // Actualizar Título (sin mencionar filtros internos)
+            const titleEl = document.querySelector('#modalContent h2');
+            if(titleEl) titleEl.innerText = `EXISTENCIA DE ${type.toUpperCase()}`;
+
+            // Actualizar fecha
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('modal-date').innerText = new Date().toLocaleDateString('es-ES', options);
+
+            const thead = document.querySelector('#modalContent thead');
+            const tbody = document.querySelector('#modalContent tbody');
+            const tfoot = document.querySelector('#modalContent tfoot');
+            
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            tfoot.innerHTML = '';
+            
+            const speciesGrid = document.getElementById('species-grid-container');
+            const speciesView = document.getElementById('species-view');
+            const genericTable = document.getElementById('generic-modal-table').parentNode;
+
+            let data = [];
+            let unitLabel = 'M²';
+            let isAserrada = type === 'Madera Aserrada';
+
+            // Helper local para obtener números (necesario para Zocalo Root)
+            const getNum = (row, keys) => {
+                for (const k of keys) {
+                    if (row[k] !== undefined) {
+                        let val = row[k];
+                        if (typeof val === 'string') val = val.replace(/,/g, '');
+                        return parseFloat(val) || 0;
+                    }
+                }
+                return 0;
+            };
+
+            if (isAserrada) {
+                // MODO MADERA ASERRADA: Mostrar Grid de Especies
+                genericTable.classList.add('hidden');
+                speciesView.classList.remove('hidden');
+                speciesGrid.innerHTML = '';
+
+                // Obtener especies únicas y sus totales
+                const speciesMap = {};
+                globalDataMDA.forEach(row => {
+                    const esp = row['ESPECIE'] || 'Desconocida';
+                    let ptVal = row['PIES TABLARES'] || row['PT'] || 0;
+                    if (typeof ptVal === 'string') ptVal = ptVal.replace(/,/g, '');
+                    speciesMap[esp] = (speciesMap[esp] || 0) + (parseFloat(ptVal) || 0);
+                });
+
+                Object.keys(speciesMap).sort().forEach(esp => {
+                    const btn = document.createElement('button');
+                    btn.className = "flex flex-col items-center justify-center p-6 bg-white border border-emerald-100 rounded-xl shadow-sm hover:shadow-md hover:border-emerald-300 hover:bg-emerald-50 transition-all duration-200 group";
+                    btn.dataset.species = esp.toLowerCase(); // Para el buscador
+                    btn.onclick = () => openSpeciesReport(esp);
+                    btn.innerHTML = `
+                        <div class="p-3 bg-emerald-100 text-emerald-700 rounded-full mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors"><i data-lucide="tree-pine" class="w-6 h-6"></i></div>
+                        <span class="font-bold text-slate-700 text-lg">${esp}</span>
+                        <span class="text-sm text-slate-500 mt-1 font-mono">${speciesMap[esp].toLocaleString('en-US', {maximumFractionDigits: 2})} PT</span>
+                        <span class="text-xs text-emerald-600 mt-2 font-medium">Ver Reporte Detallado &rarr;</span>
+                    `;
+                    speciesGrid.appendChild(btn);
+                });
+                lucide.createIcons();
+                return; // Salir, no renderizar tabla estándar
+            } else if (type === 'Zocalo') {
+                // MODO ZOCALO ROOT: Mostrar Grid de Estilos
+                genericTable.classList.add('hidden');
+                speciesView.classList.remove('hidden');
+                speciesGrid.innerHTML = '';
+                
+                // Agrupar por Estilo (Calidad)
+                const styleMap = {};
+                globalDataPTE.forEach(row => {
+                    const prod = (row['Producto'] || row['PRODUCTO'] || '').toLowerCase();
+                    if (prod.includes('zocalo')) {
+                        const style = (row['Calidad'] || row['CALIDAD'] || 'Sin Estilo').trim();
+                        // Prioridad ML para Zocalo
+                        const val = getNum(row, ['ML', 'ml', 'Ml']) || getNum(row, ['M2', 'm2', 'Metros']);
+                        // Capitalizar para mostrar bonito
+                        const styleDisplay = style.charAt(0).toUpperCase() + style.slice(1);
+                        styleMap[styleDisplay] = (styleMap[styleDisplay] || 0) + val;
+                    }
+                });
+
+                Object.keys(styleMap).sort().forEach(style => {
+                    const btn = document.createElement('button');
+                    btn.className = "flex flex-col items-center justify-center p-6 bg-white border border-pink-100 rounded-xl shadow-sm hover:shadow-md hover:border-pink-300 hover:bg-pink-50 transition-all duration-200 group";
+                    btn.dataset.species = style.toLowerCase(); // Para que funcione el buscador existente
+                    btn.onclick = () => renderModalContent('Zocalo - ' + style);
+                    btn.innerHTML = `
+                        <div class="p-3 bg-pink-100 text-pink-700 rounded-full mb-3 group-hover:bg-pink-600 group-hover:text-white transition-colors"><i data-lucide="panel-bottom" class="w-6 h-6"></i></div>
+                        <span class="font-bold text-slate-700 text-lg">${style}</span>
+                        <span class="text-sm text-slate-500 mt-1 font-mono">${styleMap[style].toLocaleString('en-US', {maximumFractionDigits: 2})} ML</span>
+                    `;
+                    speciesGrid.appendChild(btn);
+                });
+                lucide.createIcons();
+                return;
+            } else {
+                // MODO PISO: Mostrar Tabla Estándar (con filtro interno invisible)
+                genericTable.classList.remove('hidden');
+                speciesView.classList.add('hidden');
+
+                // Determinar término de búsqueda según el tipo
+                let term = type.toLowerCase().replace('piso ', ''); // 'barnizado', 'crudo', 'tranquilla', 'deck'
+                let specificStyle = null;
+
+                // Manejo especial para Zocalo Detalle
+                if (type.startsWith('Zocalo - ')) {
+                    term = 'zocalo';
+                    specificStyle = type.split(' - ')[1].toLowerCase();
+                }
+                
+                // Filtrar datos PTE por tipo de producto Y calidad (internamente, sin mostrar al usuario)
+                data = globalDataPTE.filter(d => {
+                    const prod = (d['Producto'] || d['Calidad'] || d['PRODUCTO'] || '').toLowerCase();
+                    const calidad = (d['Calidad'] || d['CALIDAD'] || '').trim().toLowerCase();
+                    
+                    // Verificar si coincide con el tipo de producto
+                    const matchesType = prod.includes(term);
+
+                    // Si hay un estilo específico (Zocalo), filtrar por él
+                    if (specificStyle) {
+                        return matchesType && calidad === specificStyle;
+                    }
+                    
+                    // FILTRO INTERNO: Para barnizado, crudo y deck solo mostrar calidad "primera"
+                    if (['barnizado', 'crudo', 'deck'].some(t => term.includes(t))) {
+                        return matchesType && calidad === 'primera';
+                    }
+                    
+                    // Para tranquilla, no filtrar por calidad
+                    return matchesType;
+                });
+                
+                if (type.toLowerCase().includes('tranquilla') || type.toLowerCase().includes('zocalo') || type.toLowerCase().includes('deck')) unitLabel = 'ML';
+            }
+
+            // Agrupar datos
+            const species = {};
+            const dimensions = new Set();
+
+            // Helper para corregir fechas (ej: 3/4 -> 2026-04-03 -> 3/4)
+            const formatDim = (v) => {
+                if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
+                    const d = new Date(v);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                }
+                return v;
+            };
+
+            data.forEach(row => {
+                // Helper para obtener valor insensible a mayúsculas/variaciones
+                const getVal = (keys) => {
+                    for (const k of keys) if (row[k] !== undefined) return row[k];
+                    return '';
+                };
+
+                const esp = getVal(['Especie', 'ESPECIE', 'especie']) || 'Sin Especie';
+                const grosor = formatDim(getVal(['Grosor "', 'Grosor', 'GROSOR', 'grosor']));
+                const ancho = formatDim(getVal(['Ancho "', 'Ancho', 'ANCHO', 'ancho']));
+                const dimKey = `${grosor} x ${ancho}`;
+                
+                // Buscar M2 en varias columnas posibles
+                let m2Val = getVal(['M2', 'm2', 'Metros', 'M2_Total_Fardo']);
+                if (typeof m2Val === 'string') m2Val = m2Val.replace(/,/g, '');
+                const val = parseFloat(m2Val) || 0;
+                
+                const unidad = (getVal(['Unidad', 'UNIDAD', 'unidad']) || 'm2').toLowerCase();
+
+                // Validar unidad para Tranquilla vs Otros
+                if (unitLabel === 'M²' && unidad === 'ml') return; 
+
+                if (val > 0) {
+                    dimensions.add(dimKey);
+                    
+                    if (!species[esp]) species[esp] = { total: 0 };
+                    if (!species[esp][dimKey]) species[esp][dimKey] = 0;
+                    
+                    species[esp][dimKey] += val;
+                    species[esp].total += val;
+                }
+            });
+
+            const sortedDims = Array.from(dimensions).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+            // Renderizar Encabezados
+            let headerHTML = '<tr><th class="px-6 py-4">Especie</th>';
+            sortedDims.forEach(dim => {
+                headerHTML += `<th class="px-6 py-4 text-right text-gray-500">${dim}</th>`;
+            });
+            headerHTML += `<th class="px-6 py-4 text-right bg-emerald-50/80 text-emerald-700 border-l border-emerald-100">Total ${unitLabel}</th></tr>`;
+            thead.innerHTML = headerHTML;
+
+            // Renderizar Filas y Totales
+            const colTotals = {};
+            sortedDims.forEach(d => colTotals[d] = 0);
+            let grandTotal = 0;
+
+            Object.keys(species).sort().forEach(esp => {
+                const d = species[esp];
+                grandTotal += d.total;
+
+                let rowHTML = `<tr class="hover:bg-emerald-50/40 transition-colors group"><td class="px-6 py-4 font-semibold text-gray-700 group-hover:text-emerald-700">${esp}</td>`;
+                
+                sortedDims.forEach(dim => {
+                    const val = d[dim] || 0;
+                    colTotals[dim] += val;
+                    rowHTML += `<td class="px-6 py-4 text-right text-gray-600 font-medium">${val > 0 ? val.toFixed(2) : '-'}</td>`;
+                });
+
+                rowHTML += `<td class="px-6 py-4 text-right font-bold text-emerald-600 bg-emerald-50/20 border-l border-emerald-50">${d.total.toFixed(2)}</td></tr>`;
+                tbody.innerHTML += rowHTML;
+            });
+
+            let footerHTML = `<tr><td class="px-6 py-4 text-gray-500 uppercase text-xs tracking-wider">Totales Generales</td>`;
+            sortedDims.forEach(dim => {
+                footerHTML += `<td class="px-6 py-4 text-right text-emerald-600">${colTotals[dim].toFixed(2)}</td>`;
+            });
+            footerHTML += `<td class="px-6 py-4 text-right bg-emerald-100 text-emerald-800 text-lg border-l border-emerald-200 shadow-inner">${grandTotal.toFixed(2)}</td></tr>`;
+            tfoot.innerHTML = footerHTML;
+        }
+
+        function filterSpeciesGrid() {
+            const term = document.getElementById('species-search').value.toLowerCase();
+            const buttons = document.querySelectorAll('#species-grid-container button');
+            buttons.forEach(btn => {
+                const species = btn.dataset.species;
+                btn.style.display = species.includes(term) ? 'flex' : 'none';
+            });
+        }
+
+        // Cargar datos al iniciar
+        loadDashboardData();
+
+        // --- FUNCIONES DE EXPORTACIÓN ---
+        async function exportGenericModalToExcel() {
+            const title = document.querySelector('#modalContent h2').innerText;
+            
+            // Verificar si estamos en modo Madera Aserrada (Grid) o Piso (Tabla)
+            const isAserradaMode = !document.getElementById('species-view').classList.contains('hidden');
+
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Existencias');
+
+            // Configuración de Impresión
+            worksheet.pageSetup = { 
+                paperSize: 1, orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0,
+                margins: { left: 0.2, right: 0.2, top: 0.4, bottom: 0.4, header: 0.2, footer: 0.2 }
+            };
+
+            // Estilos
+            const headerStyle = { font: { bold: true, color: { argb: 'FFFFFFFF' } }, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A237E' } }, alignment: { horizontal: 'center' } };
+            const cellStyle = { border: { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} } };
+
+            if (isAserradaMode) {
+                // --- EXCEL RESUMEN ESPECIES ---
+                worksheet.columns = [
+                    { header: 'Especie', key: 'esp', width: 30 },
+                    { header: 'Total PT', key: 'pt', width: 20 }
+                ];
+                worksheet.getRow(1).eachCell(cell => Object.assign(cell, headerStyle));
+
+                // Helper local para obtener valores
+                const getVal = (row, keys) => {
+                    const rowKeys = Object.keys(row);
+                    for (const k of keys) {
+                        if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+                        const match = rowKeys.find(rk => rk.trim().toLowerCase() === k.trim().toLowerCase());
+                        if (match && row[match] !== undefined && row[match] !== "") return row[match];
+                    }
+                    return undefined;
+                };
+
+                const speciesMap = {};
+                globalDataMDA.forEach(row => {
+                    const esp = row['ESPECIE'] || 'Desconocida';
+                    let ptVal = row['PIES TABLARES'] || row['PT'] || 0;
+                    if (typeof ptVal === 'string') {
+                        // Corregir formato ES (1.000,00) a JS (1000.00)
+                        ptVal = ptVal.replace(/\./g, '').replace(/,/g, '.');
+                    }
+                    speciesMap[esp] = (speciesMap[esp] || 0) + (parseFloat(ptVal) || 0);
+                });
+
+                Object.keys(speciesMap).sort().forEach(esp => {
+                    worksheet.addRow({ esp: esp, pt: speciesMap[esp] });
+                });
+                
+                // Formato de números
+                worksheet.getColumn('pt').numFmt = '#,##0.00';
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), "Resumen_Madera_Aserrada.xlsx");
+
+            } else {
+                // --- EXCEL TABLA PISO ---
+                const table = document.getElementById('generic-modal-table');
+                
+                // Headers
+                const headers = Array.from(table.querySelectorAll('thead th')).map(th => th.innerText);
+                worksheet.addRow(headers).eachCell(cell => Object.assign(cell, headerStyle));
+
+                // Body
+                const rows = table.querySelectorAll('tbody tr');
+                rows.forEach(tr => {
+                    const rowData = Array.from(tr.querySelectorAll('td')).map(td => {
+                        const val = td.innerText;
+                        return isNaN(parseFloat(val)) ? val : parseFloat(val);
+                    });
+                    const r = worksheet.addRow(rowData);
+                    r.eachCell(cell => Object.assign(cell, cellStyle));
+                });
+
+                // Footer
+                const footRow = table.querySelector('tfoot tr');
+                if(footRow) {
+                    const footData = Array.from(footRow.querySelectorAll('td')).map(td => td.innerText);
+                    const r = worksheet.addRow(footData);
+                    r.font = { bold: true };
+                    r.eachCell(cell => cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } });
+                }
+
+                // Auto-width simple
+                worksheet.columns.forEach(col => { col.width = 15; });
+                worksheet.getColumn(1).width = 25;
+
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), `${title}.xlsx`);
+            }
+        }
+
+        async function exportReportToExcel() {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Reporte Detallado');
+            
+            // 1. Configuración de Página (Carta Horizontal)
+            worksheet.pageSetup = { 
+                paperSize: 1, // Letter
+                orientation: 'landscape',
+                fitToPage: true,
+                fitToWidth: 1, // Forzar ancho a 1 página
+                fitToHeight: 0, // Alto automático
+                margins: {
+                    left: 0.2, right: 0.2,
+                    top: 0.4, bottom: 0.4,
+                    header: 0.2, footer: 0.2
+                }
+            };
+
+            // 2. Estilos
+            const headerStyle = {
+                font: { name: 'Arial', color: { argb: 'FFFFFFFF' }, bold: true, size: 10 },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6B8E23' } }, // Verde Oliva
+                alignment: { horizontal: 'center', vertical: 'middle', wrapText: true },
+                border: { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
+            };
+            const subHeaderStyle = {
+                font: { name: 'Arial', color: { argb: 'FFFFFFFF' }, bold: true, size: 9 },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF556B2F' } }, // Verde Oscuro
+                alignment: { horizontal: 'center', vertical: 'middle' },
+                border: { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
+            };
+            const cellStyle = {
+                font: { name: 'Arial', color: { argb: 'FF333333' }, size: 10 },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFEFEE9' } }, // Beige
+                alignment: { horizontal: 'right', vertical: 'middle' },
+                border: { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
+            };
+            const totalStyle = {
+                font: { name: 'Arial', color: { argb: 'FF2C3E50' }, bold: true, size: 11 },
+                fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFBDB76B' } }, // Khaki
+                alignment: { horizontal: 'right', vertical: 'middle' },
+                border: { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} }
+            };
+
+            // 3. Título y Fecha
+            const table = document.getElementById('report-table');
+            const title = document.getElementById('report-title').innerText;
+            const date = document.getElementById('report-date').innerText;
+
+            worksheet.mergeCells('A1:U1'); // Ajustado para cubrir las 21 columnas (Calidad + Grosor + 15 Largos + 4 Totales)
+            const titleCell = worksheet.getCell('A1');
+            titleCell.value = title;
+            titleCell.font = { name: 'Arial', size: 14, bold: true, color: { argb: 'FF2F4F4F' } };
+            titleCell.alignment = { horizontal: 'center' };
+
+            worksheet.mergeCells('A2:U2');
+            const dateCell = worksheet.getCell('A2');
+            dateCell.value = date;
+            dateCell.font = { name: 'Arial', size: 11, italic: true };
+            dateCell.alignment = { horizontal: 'center' };
+
+            // 4. Parsear Tabla HTML a Excel
+            const rows = Array.from(table.querySelectorAll('tr'));
+            const startRow = 4; // Empezar en fila 4
+            const grid = []; // Mapa de ocupación para merges
+            let maxCol = 0;
+
+            rows.forEach((tr, rIndex) => {
+                const cells = Array.from(tr.children);
+                let cIndex = 0;
+                if (!grid[rIndex]) grid[rIndex] = [];
+
+                cells.forEach((td) => {
+                    // Saltar celdas ocupadas por merges anteriores
+                    while (grid[rIndex][cIndex]) cIndex++;
+
+                    const rowspan = parseInt(td.getAttribute('rowspan') || 1);
+                    const colspan = parseInt(td.getAttribute('colspan') || 1);
+                    
+                    // Obtener valor y convertir a número si es posible
+                    let val = td.innerText.trim();
+                    // Limpieza para formato Español (1.234,56 -> 1234.56)
+                    // Eliminar puntos de miles y reemplazar coma decimal por punto
+                    const numVal = parseFloat(val.replace(/\./g, '').replace(/,/g, '.'));
+                    // Si parece número y no está vacío, usar número
+                    if (!isNaN(numVal) && val.match(/^[0-9.,-]+$/) && val !== '-') {
+                        val = numVal;
+                    }
+
+                    const excelRow = startRow + rIndex;
+                    const excelCol = cIndex + 1;
+                    const cell = worksheet.getCell(excelRow, excelCol);
+                    cell.value = val;
+
+                    // Aplicar Estilos
+                    if (tr.parentElement.tagName === 'THEAD') {
+                        if (td.classList.contains('report-header')) {
+                            Object.assign(cell, JSON.parse(JSON.stringify(headerStyle)));
+                        } else {
+                            Object.assign(cell, JSON.parse(JSON.stringify(subHeaderStyle)));
+                        }
+                    } else if (tr.parentElement.tagName === 'TFOOT') {
+                        Object.assign(cell, JSON.parse(JSON.stringify(totalStyle)));
+                    } else {
+                        // Body
+                        Object.assign(cell, JSON.parse(JSON.stringify(cellStyle)));
+                        // Estilo especial para columna Calidad (1ra columna)
+                        if (cIndex === 0) {
+                            cell.alignment = { horizontal: 'left', vertical: 'top', wrapText: true };
+                            cell.font.bold = true;
+                            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
+                        } else if (cIndex === 1) { // Grosor
+                            cell.alignment = { horizontal: 'center' };
+                        }
+                    }
+
+                    // Aplicar Merge
+                    if (rowspan > 1 || colspan > 1) {
+                        worksheet.mergeCells(excelRow, excelCol, excelRow + rowspan - 1, excelCol + colspan - 1);
+                    }
+
+                    // Marcar ocupación en grid
+                    for (let i = 0; i < rowspan; i++) {
+                        for (let j = 0; j < colspan; j++) {
+                            if (!grid[rIndex + i]) grid[rIndex + i] = [];
+                            grid[rIndex + i][cIndex + j] = true;
+                        }
+                    }
+                    if (cIndex + colspan > maxCol) maxCol = cIndex + colspan;
+                });
+            });
+
+            // 5. Ajustar Anchos de Columna
+            worksheet.getColumn(1).width = 25; // Calidad
+            worksheet.getColumn(2).width = 10; // Grosor
+            for (let i = 3; i <= maxCol; i++) {
+                worksheet.getColumn(i).width = 8; // Datos
+            }
+            // Totales finales un poco más anchos
+            if (maxCol > 3) {
+                worksheet.getColumn(maxCol).width = 12;
+                worksheet.getColumn(maxCol-1).width = 12;
+            }
+
+            // 6. Descargar
+            const buffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([buffer]), `${title}.xlsx`);
+        }
+
+        // --- LÓGICA REPORTE DETALLADO (ESPECIES) ---
+        function openSpeciesReport(speciesName) {
+            const modal = document.getElementById('report-modal');
+            modal.classList.remove('hidden');
+            
+            // Actualizar Título
+            document.getElementById('report-title').innerText = `INVENTARIO TOTAL DE ${speciesName.toUpperCase()}`;
+            
+            // Fecha actual
+            const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+            document.getElementById('report-date').innerText = new Date().toLocaleDateString('es-ES', options);
+
+            renderSpeciesTable(speciesName);
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        function renderSpeciesTable(speciesName) {
+            // Helper robusto para obtener valores buscando en múltiples variantes de llaves
+            const getVal = (row, keys) => {
+                // 1. Búsqueda exacta
+                for (const k of keys) {
+                    if (row[k] !== undefined && row[k] !== null && row[k] !== "") return row[k];
+                }
+                // 2. Búsqueda insensible a mayúsculas/minúsculas
+                const rowKeys = Object.keys(row);
+                for (const k of keys) {
+                    const match = rowKeys.find(rk => rk.toLowerCase() === k.toLowerCase());
+                    if (match && row[match] !== undefined && row[match] !== "") return row[match];
+                }
+                return undefined;
+            };
+
+            // 1. Filtrar Datos por Especie
+            const filteredData = globalDataMDA.filter(row => {
+                const esp = String(getVal(row, ['ESPECIE', 'Especie']) || '').trim().toLowerCase();
+                return esp === String(speciesName).trim().toLowerCase();
+            });
+
+            // 2. Estructura de Datos Pivot
+            // Calidad -> Grosor -> Largo (6..16) -> PT
+            const pivot = {};
+            // Rango ampliado para incluir cortos (2-5)
+            const largos = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+            
+            filteredData.forEach(row => {
+                const calidad = getVal(row, ['CALIDAD', 'Calidad']) || 'Sin Clasificar';
+                // Helper para corregir fechas en grosor
+                const formatDim = (v) => {
+                    if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
+                        const d = new Date(v);
+                        return `${d.getDate()}/${d.getMonth() + 1}`;
+                    }
+                    return v;
+                };
+                const grosor = formatDim(getVal(row, ['GROSOR', 'Grosor', 'Espesor']) || 'S/G');
+                
+                let largo = parseInt(getVal(row, ['LARGO', 'Largo', 'Largo (ft)', 'Largo_Ft'])) || 0;
+                
+                let ptVal = getVal(row, ['PIES TABLARES', 'Pies Tablares', 'PT', 'pt']) || 0;
+                if (typeof ptVal === 'string') {
+                    // Corregir formato ES (1.000,00) a JS (1000.00)
+                    ptVal = ptVal.replace(/\./g, '').replace(/,/g, '.');
+                }
+                const pt = parseFloat(ptVal) || 0;
+
+                // Agrupar largos mayores a 16 en 16
+                if (largo < 2) return; 
+                if (largo > 16) largo = 16; 
+
+                if (!pivot[calidad]) pivot[calidad] = {};
+                if (!pivot[calidad][grosor]) pivot[calidad][grosor] = Array(17).fill(0); // Indices 0-16
+
+                pivot[calidad][grosor][largo] += pt;
+            });
+
+            // 3. Renderizar Headers
+            const h1 = document.getElementById('report-header-row-1');
+            const h2 = document.getElementById('report-header-row-2');
+            
+            h1.innerHTML = `
+                <th rowspan="2" class="report-header px-4 py-2 text-left w-48">CALIDAD</th>
+                <th rowspan="2" class="report-header px-4 py-2 text-center w-24">GROSOR</th>
+                <th colspan="${largos.length}" class="report-header px-4 py-2 text-center border-b border-emerald-800">LARGOS (Pies)</th>
+                <th colspan="4" class="report-header px-4 py-2 text-center border-b border-emerald-800 bg-emerald-800">RESUMEN PT</th>
+            `;
+
+            let h2HTML = '';
+            largos.forEach(l => h2HTML += `<th class="report-sub-header px-2 py-2 w-16">${l}'${l===16?'+':''}</th>`);
+            h2HTML += `
+                <th class="report-sub-header px-2 py-2 bg-emerald-900 w-24">2'-5'</th>
+                <th class="report-sub-header px-2 py-2 bg-emerald-900 w-24">6'-7'</th>
+                <th class="report-sub-header px-2 py-2 bg-emerald-900 w-24">8'+</th>
+                <th class="report-sub-header px-2 py-2 bg-emerald-950 w-28">TOTAL</th>
+            `;
+            h2.innerHTML = h2HTML;
+
+            // 4. Renderizar Body
+            const tbody = document.getElementById('report-body');
+            tbody.innerHTML = '';
+            
+            let grandTotal = 0;
+            const colTotals = Array(17).fill(0); // Totales por columna de largo
+            let grandSum35 = 0;
+            let grandSum67 = 0;
+            let grandSum8Plus = 0;
+
+            Object.keys(pivot).sort().forEach(calidad => {
+                const grosores = pivot[calidad];
+                let calidadTotal = 0;
+
+                // Filas de Grosores
+                Object.keys(grosores).sort().forEach((grosor, idx) => {
+                    const data = grosores[grosor];
+                    let rowHTML = `<tr class="report-row border-b border-emerald-50">`;
+                    
+                    // Celda Calidad (Solo en la primera fila del grupo)
+                    if (idx === 0) {
+                        rowHTML += `<td rowspan="${Object.keys(grosores).length}" class="px-4 py-2 font-bold text-left bg-white border-r border-emerald-100 align-top pt-4 whitespace-normal break-words">${calidad}</td>`;
+                    }
+                    
+                    rowHTML += `<td class="px-4 py-2 text-center font-medium border-r border-emerald-100">${grosor}</td>`;
+
+                    let sum35 = 0;
+                    let sum67 = 0;
+                    let sum8Plus = 0;
+                    let rowTotal = 0;
+
+                    largos.forEach(l => {
+                        const val = data[l];
+                        rowTotal += val;
+                        colTotals[l] += val;
+                        
+                        if (l <= 5) sum35 += val;
+                        else if (l <= 7) sum67 += val;
+                        else sum8Plus += val;
+
+                        rowHTML += `<td class="px-2 py-2 report-cell">${val > 0 ? val.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}) : '-'}</td>`;
+                    });
+
+                    calidadTotal += rowTotal;
+                    grandSum35 += sum35;
+                    grandSum67 += sum67;
+                    grandSum8Plus += sum8Plus;
+
+                    rowHTML += `<td class="px-2 py-2 font-bold bg-emerald-50 text-emerald-800 border-l border-emerald-200">${sum35.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;
+                    rowHTML += `<td class="px-2 py-2 font-bold bg-emerald-50 text-emerald-800 border-l border-emerald-200">${sum67.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;
+                    rowHTML += `<td class="px-2 py-2 font-bold bg-emerald-50 text-emerald-800">${sum8Plus.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;
+                    rowHTML += `<td class="px-2 py-2 font-black bg-emerald-100 text-emerald-900 border-l border-emerald-300">${rowTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;
+                    rowHTML += `</tr>`;
+                    tbody.innerHTML += rowHTML;
+                });
+
+                // Subtotal Calidad
+                grandTotal += calidadTotal;
+            });
+
+            // 5. Footer (Totales Generales)
+            const tfoot = document.getElementById('report-foot');
+            tfoot.innerHTML = `<tr class="report-total-row text-white bg-emerald-900"><td colspan="2" class="px-4 py-3 text-right text-lg">TOTAL GENERAL PT</td>${largos.map(l => `<td class="px-2 py-3">${colTotals[l].toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`).join('')}<td class="px-2 py-3 bg-emerald-800">${grandSum35.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="px-2 py-3 bg-emerald-800">${grandSum67.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="px-2 py-3 bg-emerald-800">${grandSum8Plus.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td><td class="px-2 py-3 text-xl bg-emerald-950 text-yellow-400">${grandTotal.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td></tr>`;
+        }
+
+        // --- LÓGICA DE LOGIN Y SALUDOS ---
+        function actualizarSaludoFijo(nombre, rol) {
+            const hora = new Date().getHours();
+            let saludoBase = "";
+            let icon = "";
+
+            if (hora >= 6 && hora < 12) {
+                saludoBase = "Buenos días";
+                icon = "🌅";
+            } else if (hora >= 12 && hora < 18) {
+                saludoBase = "Buenas tardes";
+                icon = "☀️";
+            } else {
+                saludoBase = "Buenas noches";
+                icon = "🌙";
+            }
+
+            const textoCompleto = `${icon} ${saludoBase}, <span class="text-blue-600">${nombre}</span>`;
+            
+            // Inyectar en Desktop
+            document.getElementById('user-greeting-desktop').innerHTML = textoCompleto;
+            // Inyectar en Móvil
+            document.getElementById('user-greeting-mobile').innerHTML = textoCompleto;
+            // Inyectar Rol
+            document.getElementById('role-badge').innerText = rol.toUpperCase();
+        }
+
+        function intentarLogin() {
+            const user = document.getElementById('user-login').value;
+            const pass = document.getElementById('pass-login').value;
+            const errorMsg = document.getElementById('login-error');
+            let sessionData = null;
+
+            if (user === "admin" && pass === "gibor2026") {
+                sessionData = { name: "Michelle Giron", role: "admin" };
+            } else if (user === "inventario" && pass === "inventario2026") {
+                sessionData = { name: "Jose Corado", role: "inventario" };
+            } else {
+                errorMsg.classList.remove('hidden');
+                // Efecto de sacudida en caso de error
+                const panel = document.querySelector('#login-screen > div.relative');
+                if(panel) {
+                    panel.classList.add('animate-bounce');
+                    setTimeout(() => panel.classList.remove('animate-bounce'), 500);
+                }
+                return;
+            }
+
+            // Guardar sesión de forma persistente
+            localStorage.setItem('gibor_session', JSON.stringify(sessionData));
+            actualizarSaludoFijo(sessionData.name, sessionData.role);
+            configurarVista(sessionData.role);
+
+            // Animación de salida del login
+            const loginScreen = document.getElementById('login-screen');
+            loginScreen.classList.add('opacity-0', 'scale-110');
+            setTimeout(() => {
+                loginScreen.classList.add('hidden');
+                lucide.createIcons(); // Re-inicializar iconos para el saludo si hubiera
+            }, 500);
+        }
+
+        function configurarVista(rol) {
+            const navItems = document.querySelectorAll('.nav-item');
+            const sections = document.querySelectorAll('.pt-6'); // Títulos de sección en sidebar
+            const exportBtn = document.getElementById('btn-export-dashboard');
+
+            if (rol === "admin") {
+                navItems.forEach(item => {
+                    const spanText = item.querySelector('span').innerText.trim();
+                    // Solo permite ver "Inicio"
+                    item.style.display = (spanText === "Inicio") ? 'flex' : 'none';
+                });
+                sections.forEach(sec => sec.style.display = 'none');
+                if (exportBtn) exportBtn.style.display = 'none';
+            } else {
+                // Usuario inventario ve todo
+                navItems.forEach(item => item.style.display = 'flex');
+                sections.forEach(sec => sec.style.display = 'block');
+                if (exportBtn) exportBtn.style.display = 'flex';
+            }
+        }
+
+        function cerrarSesion() {
+            if(confirm("¿Estás seguro de que deseas cerrar la sesión?")) {
+                localStorage.removeItem('gibor_session');
+                location.reload();
+            }
+        }
+
+        // Verificar sesión al cargar la página
+        window.addEventListener('DOMContentLoaded', () => {
+            const session = localStorage.getItem('gibor_session');
+            if (session) {
+                const data = JSON.parse(session);
+                actualizarSaludoFijo(data.name, data.role);
+                configurarVista(data.role);
+                
+                const loginScreen = document.getElementById('login-screen');
+                loginScreen.classList.add('hidden');
+                
+                loadDashboardData();
+                lucide.createIcons();
+            }
+        });
+    </script>
+</body>
+</html>

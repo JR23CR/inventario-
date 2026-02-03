@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Menú - Madera Aserrada</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        h1 {
+            color: var(--primary);
+            margin-bottom: 40px;
+            text-align: center;
+        }
+        .menu-button {
+            display: block;
+            width: 80%;
+            max-width: 300px;
+            padding: 25px;
+            margin: 10px 0;
+            border: none;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            cursor: pointer;
+            text-align: center;
+            text-decoration: none;
+            color: var(--primary);
+            background-color: var(--card-bg);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transition: transform 0.2s;
+            border: 1px solid #e0e0e0;
+        }
+        .menu-button:active { transform: scale(0.98); }
+        
+        .btn-back { 
+            background-color: transparent; 
+            color: #95a5a6; 
+            box-shadow: none; 
+            border: none; 
+            margin-top: 30px; 
+            font-size: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <h1>Inventario Madera Aserrada</h1>
+    
+    <div style="width: 90%; max-width: 400px; background: white; padding: 15px; border-radius: 20px; margin-bottom: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
+        <canvas id="myChart"></canvas>
+    </div>
+
+    <a href="ingreso_tally.html" class="menu-button">📝 Ingreso Tallys</a>
+    <a href="base_datos_aserrada.html" class="menu-button">📂 Base de Datos</a>
+    <a href="buscar_rebajar.html" class="menu-button">🔍 Buscar y Rebajar</a>
+    <a href="etiquetas_aserrada.html" class="menu-button">🏷️ Etiquetas</a>
+    <a href="packing_aserrada.html" class="menu-button">📦 Packing List</a>
+    
+    <!-- <a href="index.html" class="menu-button btn-back">⬅ Volver al Inicio</a> -->
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+
+        fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA")
+        .then(res => {
+            if (!res.ok) throw new Error('Error de red al cargar datos del gráfico.');
+            return res.text();
+        })
+        .then(text => {
+            try {
+                return JSON.parse(text);
+            } catch (e) {
+                console.error("Error al procesar datos del gráfico. El script no devolvió JSON.");
+                return []; // Devolvemos un array vacío para que no se rompa el gráfico.
+            }
+        })
+        .then(data => {
+            // Agrupar por Especie
+            const especies = {};
+            data.forEach(row => {
+                const esp = row['ESPECIE'] || 'Desconocido';
+                especies[esp] = (especies[esp] || 0) + (parseFloat(row['PIES TABLARES']) || 0);
+            });
+
+            const ctx = document.getElementById('myChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(especies),
+                    datasets: [{
+                        data: Object.values(especies),
+                        backgroundColor: ['#8e44ad', '#2980b9', '#27ae60', '#f1c40f', '#e74c3c']
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' }, title: { display: true, text: 'Pies Tablares por Especie' } } }
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Base de Datos - Madera Aserrada</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container { width: 100%; max-width: 800px; }
+        h2 { text-align: center; font-size: 1.5rem; color: var(--primary); margin-bottom: 20px; }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 5px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 1rem;
+            background-color: #fafafa;
+            outline: none;
+        }
+        input:focus { background-color: #fff; border-color: var(--primary); }
+
+        .table-container {
+            overflow-x: auto;
+            border-radius: 15px;
+            border: 1px solid #eee;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+        th, td {
+            padding: 10px;
+            text-align: left;
+            border-bottom: 1px solid #eee;
+            vertical-align: middle;
+        }
+        th {
+            background-color: #f8f9fa;
+            color: #95a5a6;
+            font-weight: 700;
+            text-transform: uppercase;
+            font-size: 0.75rem;
+            position: sticky;
+            top: 0;
+        }
+        tr:last-child td { border-bottom: none; }
+        
+        /* Estilos comprimidos para celdas */
+        .cell-primary {
+            display: flex;
+            flex-direction: column;
+        }
+        .fardo-id {
+            font-size: 1rem;
+            font-weight: 800;
+            color: var(--primary);
+        }
+        .especie-sub {
+            font-size: 0.75rem;
+            color: #7f8c8d;
+            font-weight: 600;
+        }
+        .info-main {
+            font-weight: 600;
+            color: var(--text-dark);
+        }
+        .info-sub {
+            font-size: 0.7rem;
+            color: #95a5a6;
+            line-height: 1.3;
+        }
+        .stock-pt {
+            color: #27ae60;
+            font-weight: bold;
+            font-size: 0.95rem;
+        }
+
+        .btn-back { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            text-decoration: none; 
+            display: block; 
+            text-align: center; 
+            padding: 15px; 
+            border-radius: 15px; 
+            font-weight: bold; 
+            margin-top: 20px;
+        }
+        
+        #loading { text-align: center; color: #95a5a6; font-style: italic; margin: 20px 0; }
+
+        /* Estilos del Modal */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 1000;
+            display: none; justify-content: center; align-items: center;
+            backdrop-filter: blur(3px);
+        }
+        .modal-content {
+            background: white; width: 90%; max-width: 400px;
+            padding: 25px; border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+            max-height: 90vh; overflow-y: auto;
+            animation: slideUp 0.3s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .close-modal {
+            position: absolute; top: 15px; right: 20px;
+            font-size: 2rem; color: #aaa; cursor: pointer;
+            line-height: 1;
+        }
+        .gps-control {
+            background: #f8f9fa; padding: 15px; border-radius: 15px;
+            margin-top: 15px; text-align: center; border: 1px solid #eee;
+        }
+        .progress-bar {
+            width: 100%; height: 8px; background: #e0e0e0;
+            border-radius: 4px; margin-top: 8px; overflow: hidden;
+        }
+        #accBar { height: 100%; width: 0%; transition: width 0.5s, background-color 0.5s; }
+        
+        .btn-save-loc {
+            background-color: #95a5a6; color: white; border: none; padding: 12px;
+            width: 100%; border-radius: 10px; margin-top: 15px; font-weight: bold;
+            cursor: not-allowed; opacity: 0.7; transition: all 0.3s;
+        }
+        .btn-map {
+            background-color: #3498db; /* Un azul diferente para el mapa */
+            color: white; border: none; padding: 12px;
+            width: 100%; border-radius: 10px; margin-top: 10px; font-weight: bold;
+        }
+        .btn-gps { background-color: var(--primary); color: white; border: none; padding: 10px 20px; border-radius: 20px; font-weight: bold; cursor: pointer; width: 100%; }
+        .btn-mapa-general {
+            background-color: #3498db; color: white; text-decoration: none; display: block;
+            text-align: center; padding: 15px; border-radius: 15px; font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+        <h2 style="margin: 0; font-size: 1.5rem; color: var(--primary);">📂 Base de Datos</h2>
+        <a href="mapa_ubicaciones.html" class="btn-mapa-general" style="margin-top: 0; width: auto; padding: 10px 15px; font-size: 0.9rem;">🗺️ Ver Mapa</a>
+    </div>
+
+    <div class="card">
+        <input type="text" id="searchInput" placeholder="🔍 Buscar por Fardo, Especie o Calidad..." oninput="filtrarTabla()">
+    </div>
+
+    <div class="card" style="padding: 0; overflow: hidden;">
+        <div id="loading">🔄 Conectando con Base de Datos...</div>
+        <div class="table-container">
+            <table id="dbTable">
+                <thead>
+                    <tr>
+                        <th>Fardo / Especie</th>
+                        <th>Detalles</th>
+                        <th style="text-align:right;">Stock (Pzs / PT)</th>
+                    </tr>
+                </thead>
+                <tbody id="tableBody">
+                    <!-- Filas generadas por JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- <a href="menu_aserrada.html" class="btn-back" style="margin-top: 10px;">⬅ Volver al Menú Principal</a> -->
+</div>
+
+<!-- Modal de Detalles y Ubicación -->
+<div id="modalDetalle" class="modal-overlay">
+    <div class="modal-content">
+        <span class="close-modal" onclick="cerrarModal()">&times;</span>
+        <h3 id="modalTitle" style="color:var(--primary); margin-top:0;">Fardo #---</h3>
+        <div id="modalInfo" style="line-height: 1.6; color: #2c3e50;"></div>
+        
+        <hr style="border:0; border-top:1px dashed #ccc; margin: 15px 0;">
+        
+        <h4 style="margin:0 0 10px 0; color:#2c3e50;">📍 Actualizar Ubicación</h4>
+        <div class="gps-control">
+            <button id="btnGPS" class="btn-gps" onclick="toggleGPS()">📡 Activar GPS (Test Precisión)</button>
+            
+            <div id="gpsData" style="display:none; margin-top:15px; font-size: 0.9rem;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
+                    <span>Lat: <b id="latVal">--</b></span> <span>Lon: <b id="lonVal">--</b></span>
+                </div>
+                <div style="font-size:0.8rem; color:#7f8c8d; margin-bottom:5px;">Precisión: <span id="accVal">--</span> m</div>
+                <div class="progress-bar"><div id="accBar"></div></div>
+                <div id="gpsMsg" style="font-size:0.75rem; margin-top:5px; font-style:italic;">Buscando satélites...</div>
+            </div>
+
+            <button id="btnSaveLoc" class="btn-save-loc" onclick="guardarUbicacion()" disabled>💾 Guardar Ubicación</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let inventarioCompleto = [];
+    let currentFardo = null;
+    let watchId = null;
+    let lastCoords = null;
+
+    window.onload = function() {
+        fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA")
+        .then(res => {
+            if (!res.ok) throw new Error(`Error de red: ${res.status} ${res.statusText}`);
+            return res.text(); // Leemos como texto para poder inspeccionar la respuesta.
+        })
+        .then(text => {
+            try {
+                // Intentamos convertir el texto a JSON.
+                return JSON.parse(text);
+            } catch (e) {
+                // Si falla, es porque Google devolvió una página de error HTML.
+                console.error("La respuesta del servidor no es JSON válido:", text);
+                throw new Error("El script de Google devolvió un error. Revisa que la implementación esté activa y con acceso para 'Cualquier persona'.");
+            }
+        })
+        .then(data => {
+            procesarDatos(data);
+        })
+        .catch(err => {
+            document.getElementById('loading').innerText = `❌ ${err.message}`;
+            document.getElementById('loading').style.color = 'red';
+        });
+    };
+
+    function procesarDatos(data) {
+        const agrupado = {};
+
+        // Agrupar filas por número de Fardo
+        data.forEach(row => {
+            const fardo = row['FARDO'];
+            if (!fardo) return;
+
+            if (!agrupado[fardo]) {
+                agrupado[fardo] = {
+                    fardo: fardo,
+                    especie: row['ESPECIE'] || '---',
+                    calidad: row['CALIDAD'] || '',
+                    grosor: row['GROSOR'] || '',
+                    condicion: row['CONDICION'] || '',
+                    ubicacion: row['UBICACION'] || '',
+                    piezas: 0,
+                    pt: 0
+                };
+            }
+            agrupado[fardo].piezas += parseInt(row['PIEZAS'] || 0);
+            agrupado[fardo].pt += parseFloat(row['PIES TABLARES'] || 0);
+        });
+
+        // Convertir objeto a array y ordenar por número de fardo (descendente)
+        inventarioCompleto = Object.values(agrupado).sort((a, b) => b.fardo - a.fardo);
+        
+        renderizarTabla(inventarioCompleto);
+        document.getElementById('loading').style.display = 'none';
+    }
+
+    function renderizarTabla(lista) {
+        const tbody = document.getElementById('tableBody');
+        tbody.innerHTML = "";
+
+        if (lista.length === 0) {
+            tbody.innerHTML = "<tr><td colspan='3' style='text-align:center; padding:20px;'>No se encontraron resultados</td></tr>";
+            return;
+        }
+
+        lista.forEach(item => {
+            const tr = document.createElement('tr');
+            tr.onclick = () => abrirModal(item); // Hacer fila clicable
+            tr.style.cursor = "pointer";
+            tr.innerHTML = `
+                <td>
+                    <div class="cell-primary">
+                        <span class="fardo-id">#${item.fardo}</span>
+                        <span class="especie-sub">${item.especie}</span>
+                    </div>
+                </td>
+                <td>
+                    <div class="info-main">${item.calidad}</div>
+                    <div class="info-sub">${item.grosor} - ${item.condicion} <br> 📍 ${item.ubicacion}</div>
+                </td>
+                <td style="text-align:right;">
+                    <div class="stock-pt">${item.pt.toFixed(2)} PT</div>
+                    <div class="info-sub">${item.piezas} Pzs</div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    function filtrarTabla() {
+        const texto = document.getElementById('searchInput').value.toLowerCase().trim();
+        
+        // Si la caja de búsqueda está vacía, muestra la lista completa y detiene la función.
+        if (!texto) {
+            renderizarTabla(inventarioCompleto);
+            return;
+        }
+        
+        const filtrados = inventarioCompleto.filter(item => {
+            // Se asegura que las propiedades existan y sean texto antes de buscar en ellas.
+            const fardo = String(item.fardo || '').toLowerCase();
+            const especie = String(item.especie || '').toLowerCase();
+            const calidad = String(item.calidad || '').toLowerCase();
+            const ubicacion = String(item.ubicacion || '').toLowerCase();
+
+            return fardo.includes(texto) ||
+                   especie.includes(texto) ||
+                   calidad.includes(texto) ||
+                   ubicacion.includes(texto);
+        });
+
+        renderizarTabla(filtrados);
+    }
+
+    // --- Lógica del Modal y GPS ---
+    function abrirModal(item) {
+        currentFardo = item;
+        document.getElementById('modalTitle').innerText = `Fardo #${item.fardo}`;
+        document.getElementById('modalInfo').innerHTML = `
+            <b>Especie:</b> ${item.especie}<br>
+            <b>Calidad:</b> ${item.calidad}<br>
+            <b>Medidas:</b> ${item.grosor} - ${item.condicion}<br>
+            <b>Stock:</b> ${item.piezas} Pzs / ${item.pt.toFixed(2)} PT<br>
+            <b>Ubicación Actual:</b> ${item.ubicacion || 'No definida'}
+        `;
+        
+        // Resetear estado GPS
+        detenerGPS();
+        document.getElementById('gpsData').style.display = 'none';
+        document.getElementById('btnSaveLoc').disabled = true;
+        document.getElementById('btnSaveLoc').style.backgroundColor = "#95a5a6";
+        document.getElementById('btnSaveLoc').innerText = "💾 Guardar Ubicación";
+        
+        document.getElementById('modalDetalle').style.display = 'flex';
+    }
+
+    function cerrarModal() {
+        detenerGPS();
+        document.getElementById('modalDetalle').style.display = 'none';
+    }
+
+    function toggleGPS() {
+        if (watchId) {
+            detenerGPS();
+        } else {
+            iniciarGPS();
+        }
+    }
+
+    function iniciarGPS() {
+        if (!navigator.geolocation) return alert("GPS no soportado");
+        
+        const btn = document.getElementById('btnGPS');
+        btn.innerText = "🛑 Detener GPS";
+        btn.style.backgroundColor = "#e74c3c";
+        document.getElementById('gpsData').style.display = 'block';
+        
+        watchId = navigator.geolocation.watchPosition(pos => {
+            lastCoords = pos.coords;
+            const acc = pos.coords.accuracy;
+            
+            document.getElementById('latVal').innerText = pos.coords.latitude.toFixed(5);
+            document.getElementById('lonVal').innerText = pos.coords.longitude.toFixed(5);
+            document.getElementById('accVal').innerText = acc.toFixed(1);
+            
+            // Barra de precisión (Test visual)
+            const bar = document.getElementById('accBar');
+            const msg = document.getElementById('gpsMsg');
+            const btnSave = document.getElementById('btnSaveLoc');
+            
+            if (acc <= 10) {
+                bar.style.width = "100%"; bar.style.backgroundColor = "#27ae60"; // Verde
+                msg.innerText = "✅ Precisión Excelente";
+                btnSave.style.backgroundColor = "#27ae60";
+                btnSave.innerText = "💾 Guardar (Excelente)";
+            } else if (acc <= 30) {
+                bar.style.width = "60%"; bar.style.backgroundColor = "#f1c40f"; // Amarillo
+                msg.innerText = "⚠️ Precisión Aceptable";
+                btnSave.style.backgroundColor = "#f39c12";
+                btnSave.innerText = "💾 Guardar (Aceptable)";
+            } else {
+                bar.style.width = "20%"; bar.style.backgroundColor = "#e74c3c"; // Rojo
+                msg.innerText = "❌ Baja Precisión (Acércate más)";
+                btnSave.style.backgroundColor = "#95a5a6";
+            }
+            
+            btnSave.disabled = false;
+            btnSave.style.cursor = "pointer";
+            btnSave.style.opacity = "1";
+            
+        }, err => {
+            alert("Error GPS: " + err.message);
+            detenerGPS();
+        }, { enableHighAccuracy: true, maximumAge: 0 });
+    }
+
+    function detenerGPS() {
+        if (watchId) navigator.geolocation.clearWatch(watchId);
+        watchId = null;
+        const btn = document.getElementById('btnGPS');
+        btn.innerText = "📡 Activar GPS (Test Precisión)";
+        btn.style.backgroundColor = "var(--primary)";
+    }
+
+    function guardarUbicacion() {
+        if (!currentFardo || !lastCoords) return;
+        
+        const btn = document.getElementById('btnSaveLoc');
+        btn.innerText = "⏳ Guardando...";
+        btn.disabled = true;
+
+        // Formato de ubicación: "Lat, Lon (Acc: Xm)"
+        const nuevaUbicacion = `${lastCoords.latitude.toFixed(6)}, ${lastCoords.longitude.toFixed(6)} (±${lastCoords.accuracy.toFixed(0)}m)`;
+        
+        const payload = {
+            tipo: "actualizar_ubicacion", // Asegúrate de manejar esto en tu Google Script
+            sheetName: "MADERA ASERRADA",
+            fardo: currentFardo.fardo,
+            ubicacion: nuevaUbicacion
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+        })
+        .then(res => {
+            if (!res.ok) throw new Error("Error de red al guardar.");
+            return res.json();
+        })
+        .then(data => {
+            if (data.result === "success") {
+                alert(`✅ Ubicación actualizada para Fardo #${currentFardo.fardo}`);
+                cerrarModal();
+                // Recargar datos para ver cambios
+                location.reload(); 
+            } else {
+                throw new Error(data.message || "El script devolvió un error.");
+            }
+        })
+        .catch(err => {
+            alert("❌ Error al guardar: " + err);
+            btn.innerText = "💾 Reintentar Guardar";
+            btn.disabled = false;
+        });
+    }
+</script>
+
+</body>
+</html>

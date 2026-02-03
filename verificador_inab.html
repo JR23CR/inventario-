@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Verificador INAB</title>
+    <style>
+        :root {
+            --primary: #27ae60; /* Verde Bosque para INAB */
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        h2 { text-align: center; color: var(--primary); margin-bottom: 20px; font-size: 1.5rem; }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+            margin-bottom: 15px;
+            border-left: 5px solid #95a5a6; /* Gris por defecto */
+            transition: all 0.3s ease;
+        }
+        .card.pending { border-left-color: #e67e22; } /* Naranja para pendiente */
+        
+        .lote-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .lote-title { font-size: 1.2rem; font-weight: bold; color: #2c3e50; }
+        .lote-vol { font-size: 1.1rem; font-weight: bold; color: var(--primary); background: #e8f5e9; padding: 5px 10px; border-radius: 8px; }
+        
+        .status-text { font-size: 0.9rem; color: #e67e22; font-weight: bold; margin-bottom: 15px; display: block; }
+        
+        .btn-check {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            background-color: var(--primary);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        .btn-check:hover { background-color: #219150; }
+        .btn-check:disabled { background-color: #bdc3c7; cursor: not-allowed; }
+
+        #loading { text-align: center; margin-top: 20px; font-style: italic; color: #7f8c8d; }
+        .empty-state { text-align: center; padding: 40px; color: #95a5a6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🌲 Verificador INAB</h2>
+    <p style="text-align:center; font-size:0.9rem; color:#7f8c8d;">Lotes pendientes de subir volumen a Industria Forestal</p>
+    
+    <div id="loading">🔄 Conectando con Base de Datos...</div>
+    <div id="lista-lotes"></div>
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+
+    window.onload = cargarDatos;
+
+    function cargarDatos() {
+        fetch(GOOGLE_SCRIPT_URL)
+        .then(res => res.json())
+        .then(data => {
+            procesarLotes(data);
+        })
+        .catch(err => {
+            document.getElementById('loading').innerText = "❌ Error cargando datos.";
+            console.error(err);
+        });
+    }
+
+    function parseFraction(str) {
+        if (typeof str === 'number') return str;
+        if (!str) return 0;
+        if (String(str).includes('/')) {
+            const parts = str.split('/');
+            return parseInt(parts[0]) / parseInt(parts[1]);
+        }
+        return parseFloat(str);
+    }
+
+    function procesarLotes(data) {
+        const lotes = {};
+
+        data.forEach(row => {
+            const lote = row['# Lote'] || row['Lote'];
+            if (!lote) return;
+
+            // Inicializar objeto del lote si no existe
+            if (!lotes[lote]) {
+                lotes[lote] = { 
+                    id: lote, 
+                    m3: 0, 
+                    pending: false, 
+                    count: 0,
+                    producto: row['Producto'] || row['Calidad'] || 'Varios'
+                };
+            }
+
+            // Verificar si está pendiente (Si la columna INGRESO INAB no es 1)
+            const inabStatus = row['INGRESO INAB'] || row['Ingreso INAB'] || '';
+            if (String(inabStatus).trim() !== '1') {
+                lotes[lote].pending = true;
+            }
+
+            // Obtener Volumen m3 directamente de la hoja de cálculo
+            const vol = parseFloat(row['M3'] || row['m3']) || 0;
+
+            lotes[lote].m3 += vol;
+            lotes[lote].count++;
+        });
+
+        renderizar(lotes);
+    }
+
+    function renderizar(lotes) {
+        const container = document.getElementById('lista-lotes');
+        container.innerHTML = "";
+        document.getElementById('loading').style.display = 'none';
+
+        const pendientes = Object.values(lotes).filter(l => l.pending);
+
+        if (pendientes.length === 0) {
+            container.innerHTML = `<div class="empty-state">✅ ¡Todo al día! No hay lotes pendientes de subir al INAB.</div>`;
+            return;
+        }
+
+        pendientes.forEach(l => {
+            const card = document.createElement('div');
+            card.className = 'card pending';
+            card.innerHTML = `
+                <div class="lote-header">
+                    <div class="lote-title">📦 Lote: ${l.id}</div>
+                    <div class="lote-vol">${l.m3.toFixed(2)} m³</div>
+                </div>
+                <div style="font-size:0.9rem; color:#666; margin-bottom:10px;">${l.producto} (${l.count} fardos)</div>
+                <span class="status-text">⚠️ Pendiente de subir volumen Industria Forestal</span>
+                <button class="btn-check" onclick="marcarSubido('${l.id}', this)">
+                    ✅ Marcar como Subido
+                </button>
+            `;
+            container.appendChild(card);
+        });
+    }
+
+    function marcarSubido(loteId, btn) {
+        if(!confirm(`¿Confirmas que el Lote ${loteId} ya fue subido al sistema del INAB?`)) return;
+
+        btn.disabled = true;
+        btn.innerText = "⏳ Actualizando...";
+
+        // Enviar petición al Script de Google para actualizar la columna
+        const payload = {
+            tipo: "update_inab",
+            lote: loteId,
+            valor: 1
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.result === "success") {
+                alert("✅ Lote actualizado correctamente.");
+                cargarDatos();
+            } else {
+                throw new Error(data.message || "Error desconocido del servidor");
+            }
+        })
+        .catch(err => {
+            alert("❌ Error al actualizar: " + err);
+            btn.disabled = false;
+            btn.innerText = "✅ Marcar como Subido";
+        });
+    }
+</script>
+
+</body>
+</html>

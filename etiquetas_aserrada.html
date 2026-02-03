@@ -1,0 +1,512 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Etiquetas - Madera Aserrada</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+    <style>
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #2c3e50;
+            --btn-pc: #00897b;
+            --btn-bt: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 600px; margin: 0 auto; }
+        h2 { text-align: center; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary); }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            margin-top: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 1.1rem;
+            text-align: center;
+            background-color: #fafafa;
+            outline: none;
+        }
+        input:focus { background-color: #fff; border-color: var(--primary); }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 10px;
+            border: none;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:active { opacity: 0.8; }
+
+        .btn-search { background-color: var(--primary); color: white; }
+        .btn-print-pc { background-color: var(--btn-pc); color: white; margin-top: 10px; }
+        .btn-print-bt { background-color: var(--btn-bt); color: white; margin-top: 10px; }
+        .btn-add { background-color: var(--primary); color: white; margin-top: 10px; }
+        
+        .btn-connect { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            margin-bottom: 15px; 
+            width: 100%; 
+            padding: 15px; 
+            border: none; 
+            border-radius: 15px; 
+            font-weight: bold; 
+            cursor: pointer; 
+        }
+
+        /* Botón Volver Estilizado */
+        .btn-back { 
+            background-color: #e0e6ed; 
+            color: var(--text-dark); 
+            text-decoration: none; 
+            display: block; 
+            text-align: center; 
+            margin-top: 20px; 
+            padding: 15px; 
+            border-radius: 15px; 
+            font-weight: bold; 
+            border: 1px solid #cbd5e1;
+        }
+        .btn-back:hover { background-color: #cbd5e1; }
+
+        #status { font-size: 0.9rem; color: #666; margin-bottom: 10px; text-align: center; }
+
+        /* ESTILOS DE LA ETIQUETA (Visualización en pantalla) */
+        #label-preview-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+            overflow-x: auto;
+        }
+        
+        .label-box {
+            width: 4in;
+            height: 3in;
+            background: white;
+            border: 2px dashed #333;
+            padding: 10px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        /* Ajuste para pantallas pequeñas */
+        @media screen and (max-width: 400px) {
+            .label-box {
+                transform: scale(0.85);
+                transform-origin: top center;
+                margin-bottom: -40px;
+            }
+        }
+
+        /* ESTILOS DE IMPRESIÓN (4x3 Pulgadas) */
+        @media print {
+            @page { size: 4in 3in; margin: 0; }
+            html, body { margin: 0; padding: 0; background: white; }
+            body * { visibility: hidden; } /* Ocultar todo por defecto */
+            
+            #print-area, #print-area * { visibility: visible; } /* Mostrar solo área de impresión */
+            
+            #print-area {
+                position: absolute;
+                left: 0; top: 0;
+                width: 100%;
+            }
+            
+            .label-box {
+                border: none; /* Quitar borde punteado al imprimir */
+                width: 4in;
+                height: 3in;
+                margin: 0;
+                page-break-after: always; /* Una etiqueta por página */
+                display: flex !important;
+            }
+            .label-box:last-child { page-break-after: avoid; }
+            
+            .no-print { display: none !important; }
+        }
+
+        /* Contenido interno de la etiqueta */
+        .lbl-header-row { display: flex; justify-content: space-between; align-items: center; width: 100%; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 5px; }
+        .lbl-title { font-size: 1rem; font-weight: bold; text-align: left; }
+        .lbl-bulto-big { font-size: 3rem; font-weight: 900; line-height: 1; }
+        
+        .lbl-sub { font-size: 0.9rem; margin-bottom: 5px; }
+        .lbl-detail { font-size: 1.4rem; font-weight: bold; margin: 4px 0; }
+        .lbl-grid { display: flex; justify-content: space-around; width: 100%; margin-top: 5px; border-top: 2px solid black; padding-top: 5px; }
+        .lbl-col { display: flex; flex-direction: column; }
+        .lbl-val { font-size: 2rem; font-weight: bold; }
+        .lbl-tit { font-size: 1rem; text-transform: uppercase; }
+        
+        /* Cola de impresión */
+        .queue-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 8px; border-bottom: 1px solid #eee; font-size: 0.9rem;
+        }
+        .btn-remove { background: #e74c3c; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; width: auto; margin: 0; }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 class="no-print">🏷️ Etiquetas Aserrada</h2>
+        <button class="btn-connect no-print" onclick="conectarBluetooth()">📡 Conectar Impresora BT</button>
+        
+        <div class="card no-print">
+            <div id="status">Esperando conexión...</div>
+            <label style="font-weight:bold;">Número de Bulto</label>
+            <input type="text" id="searchBulto" placeholder="Ej: 501">
+            <button class="btn-search" onclick="buscarBulto()">🔍 BUSCAR DATOS</button>
+        </div>
+
+        <div id="queue-container" class="card no-print" style="display:none;">
+            <h3 style="margin-top:0;">Cola de Impresión (<span id="queue-count">0</span>)</h3>
+            <div id="queue-list" style="max-height: 150px; overflow-y: auto; text-align: left; margin-bottom: 10px;"></div>
+            
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <button class="btn-print-pc" onclick="imprimirColaPC()">🖥️ Imprimir PC</button>
+                <button class="btn-print-bt" onclick="imprimirColaBluetooth()">📡 Imprimir BT</button>
+            </div>
+        </div>
+
+        <div id="label-preview-container" style="display:none;">
+            <div class="label-box" id="etiqueta">
+                <div class="lbl-header-row">
+                    <div class="lbl-title">MADERA ASERRADA</div>
+                    <div class="lbl-bulto-big" id="lbl-bulto-header">#000</div>
+                </div>
+                
+                <svg id="barcode"></svg>
+                <div class="lbl-sub" id="lbl-idcode">CODE</div>
+                
+                <div class="lbl-detail" id="lbl-especie">ESPECIE</div>
+                <div class="lbl-detail" id="lbl-calidad">CALIDAD</div>
+                <div class="lbl-detail" id="lbl-dims">GROSOR - CONDICION</div>
+                <div class="lbl-detail" id="lbl-extra">POA - FECHA</div>
+                
+                <div class="lbl-grid">
+                    <div class="lbl-col">
+                        <span class="lbl-val" id="lbl-pzs">0</span>
+                        <span class="lbl-tit">Piezas</span>
+                    </div>
+                    <div class="lbl-col">
+                        <span class="lbl-val" id="lbl-pt">0</span>
+                        <span class="lbl-tit">Pies Tablares</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="btnAdd" class="btn-add no-print" style="display:none;" onclick="agregarACola()">➕ AGREGAR A COLA</button>
+
+        <a href="index.html" class="btn-back no-print">⬅ Volver al Dashboard</a>
+    </div>
+
+    <div id="print-area"></div>
+
+    <script>
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+        let inventario = [];
+        let printQueue = [];
+        let currentBultoData = null;
+        let bluetoothDevice;
+        let printCharacteristic;
+
+        window.onload = function() {
+            cargarInventario();
+            document.getElementById('searchBulto').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') buscarBulto();
+            });
+
+            // Auto-conexión Bluetooth si está disponible
+            if (navigator.bluetooth && navigator.bluetooth.getDevices) {
+                navigator.bluetooth.getDevices().then(devices => {
+                    const myPrinter = devices.find(d => d.name && (d.name.includes('MTH') || d.name.includes('Printer')));
+                    if (myPrinter) conectarDispositivo(myPrinter);
+                });
+            }
+        };
+
+        function cargarInventario() {
+            const status = document.getElementById('status');
+            status.innerText = "Cargando base de datos...";
+            fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA")
+            .then(res => res.json())
+            .then(data => {
+                inventario = data;
+                status.innerText = `✅ Base de datos lista (${data.length} registros)`;
+                status.style.color = "green";
+            })
+            .catch(err => {
+                status.innerText = "❌ Error cargando datos.";
+                status.style.color = "red";
+            });
+        }
+
+        function buscarBulto() {
+            const bulto = document.getElementById('searchBulto').value.trim();
+            if (!bulto) return;
+
+            // Filtrar filas del bulto (pueden ser varias si hay desglose)
+            const filas = inventario.filter(row => String(row['FARDO']) === String(bulto));
+
+            if (filas.length === 0) {
+                alert("❌ Bulto no encontrado");
+                document.getElementById('label-preview-container').style.display = 'none';
+                document.getElementById('btnAdd').style.display = 'none';
+                return;
+            }
+
+            const head = filas[0];
+            let totalPiezas = 0;
+            let totalPT = 0;
+
+            filas.forEach(f => {
+                totalPiezas += parseInt(f['PIEZAS']) || 0;
+                totalPT += parseFloat(f['PIES TABLARES']) || 0;
+            });
+
+            let fechaRaw = head['Fecha de ingreso'];
+            let fechaFmt = fechaRaw;
+            if(fechaRaw && typeof fechaRaw === 'string' && fechaRaw.includes('T')) {
+                fechaFmt = new Date(fechaRaw).toLocaleDateString();
+            }
+
+            currentBultoData = {
+                idCode: head['ID CODE'] || `${head['POA']}-${head['FARDO']}`,
+                fardo: head['FARDO'],
+                especie: head['ESPECIE'],
+                calidad: head['CALIDAD'],
+                grosor: head['GROSOR'],
+                condicion: head['CONDICION'],
+                poa: head['POA'],
+                fecha: fechaFmt,
+                pt: Math.round(totalPT),
+                pzs: totalPiezas,
+                ubicacion: head['UBICACION']
+            };
+
+            // Llenar la vista previa
+            document.getElementById('lbl-idcode').innerText = currentBultoData.idCode;
+            document.getElementById('lbl-especie').innerText = currentBultoData.especie;
+            document.getElementById('lbl-calidad').innerText = currentBultoData.calidad;
+            document.getElementById('lbl-dims').innerText = `Grosor: ${currentBultoData.grosor} - Cond: ${currentBultoData.condicion}`;
+            document.getElementById('lbl-extra').innerText = `POA: ${currentBultoData.poa} - Fecha: ${currentBultoData.fecha}`;
+            document.getElementById('lbl-pt').innerText = currentBultoData.pt;
+            document.getElementById('lbl-pzs').innerText = currentBultoData.pzs;
+            document.getElementById('lbl-bulto-header').innerText = `#${currentBultoData.fardo}`;
+
+            JsBarcode("#barcode", currentBultoData.idCode, {
+                format: "CODE128", height: 50, width: 2, displayValue: false, margin: 5
+            });
+
+            document.getElementById('label-preview-container').style.display = 'flex';
+            document.getElementById('btnAdd').style.display = 'block';
+        }
+
+        function agregarACola() {
+            if (!currentBultoData) return;
+            
+            if (printQueue.some(item => item.fardo === currentBultoData.fardo)) {
+                alert("Este bulto ya está en la cola.");
+                return;
+            }
+
+            printQueue.push(currentBultoData);
+            actualizarUICola();
+            
+            document.getElementById('searchBulto').value = "";
+            document.getElementById('searchBulto').focus();
+            document.getElementById('label-preview-container').style.display = 'none';
+            document.getElementById('btnAdd').style.display = 'none';
+        }
+
+        function actualizarUICola() {
+            const container = document.getElementById('queue-container');
+            const list = document.getElementById('queue-list');
+            const count = document.getElementById('queue-count');
+            
+            if (printQueue.length > 0) {
+                container.style.display = 'block';
+            } else {
+                container.style.display = 'none';
+            }
+            
+            count.innerText = printQueue.length;
+            list.innerHTML = "";
+            
+            printQueue.forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'queue-item';
+                div.innerHTML = `
+                    <span>📦 <b>#${item.fardo}</b> - ${item.especie}</span>
+                    <button class="btn-remove" onclick="removerDeCola(${index})">X</button>
+                `;
+                list.appendChild(div);
+            });
+        }
+
+        function removerDeCola(index) {
+            printQueue.splice(index, 1);
+            actualizarUICola();
+        }
+
+        // --- IMPRESIÓN PC ---
+        function imprimirColaPC() {
+            const printArea = document.getElementById('print-area');
+            printArea.innerHTML = ""; // Limpiar área
+
+            printQueue.forEach((item, index) => {
+                // Clonar la plantilla
+                const labelClone = document.getElementById('etiqueta').cloneNode(true);
+                labelClone.id = "print-lbl-" + index;
+                
+                // Actualizar datos
+                labelClone.querySelector('#lbl-bulto-header').innerText = "#" + item.fardo;
+                labelClone.querySelector('#lbl-idcode').innerText = item.idCode;
+                labelClone.querySelector('#lbl-especie').innerText = item.especie;
+                labelClone.querySelector('#lbl-calidad').innerText = item.calidad;
+                labelClone.querySelector('#lbl-dims').innerText = `Grosor: ${item.grosor} - Cond: ${item.condicion}`;
+                labelClone.querySelector('#lbl-extra').innerText = `POA: ${item.poa} - Fecha: ${item.fecha}`;
+                labelClone.querySelector('#lbl-pt').innerText = item.pt;
+                labelClone.querySelector('#lbl-pzs').innerText = item.pzs;
+                
+                // IMPORTANTE: El SVG clonado necesita un ID único para JsBarcode
+                const svg = labelClone.querySelector('svg');
+                svg.id = "barcode-print-" + index;
+                
+                printArea.appendChild(labelClone);
+                
+                // Generar barcode en el elemento ya insertado en el DOM
+                JsBarcode("#barcode-print-" + index, item.idCode, {
+                    format: "CODE128", height: 50, width: 2, displayValue: false, margin: 5
+                });
+            });
+
+            window.print();
+        }
+
+        // --- IMPRESIÓN BLUETOOTH ---
+        async function conectarBluetooth() {
+            try {
+                bluetoothDevice = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', '0000ff00-0000-1000-8000-00805f9b34fb']
+                });
+                conectarDispositivo(bluetoothDevice);
+            } catch (error) {
+                console.log("Cancelado: " + error);
+            }
+        }
+
+        async function conectarDispositivo(device) {
+            bluetoothDevice = device;
+            const server = await bluetoothDevice.gatt.connect();
+            let characteristic;
+            try {
+                const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                characteristic = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+            } catch (e) {
+                const service = await server.getPrimaryService('0000ff00-0000-1000-8000-00805f9b34fb');
+                characteristic = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
+            }
+            printCharacteristic = characteristic;
+            const btn = document.querySelector('.btn-connect');
+            if(btn) {
+                btn.innerText = "✅ Conectado: " + bluetoothDevice.name;
+                btn.style.backgroundColor = "#d4edda";
+                btn.style.color = "#155724";
+            }
+        }
+
+        async function imprimirColaBluetooth() {
+            if (!printCharacteristic) {
+                alert("Primero debes conectar la impresora (Botón Gris arriba)");
+                return;
+            }
+            
+            if (printQueue.length === 0) {
+                alert("La cola está vacía.");
+                return;
+            }
+
+            const encoder = new TextEncoder();
+            
+            for (const item of printQueue) {
+                let cmd = "";
+                // Configuración TSPL
+                cmd += "SIZE 101 mm, 76 mm\r\n"; 
+                cmd += "GAP 3 mm, 0 mm\r\n";
+                cmd += "DIRECTION 1\r\n";
+                cmd += "CLS\r\n";
+                cmd += "DENSITY 8\r\n";
+
+                // Header
+                cmd += `TEXT 40,30,"3",0,1,1,"MADERA ASERRADA"\r\n`;
+                cmd += `TEXT 500,20,"3",0,3,3,"#${item.fardo}"\r\n`;
+                
+                // Barcode
+                cmd += `BARCODE 120,90,"128",90,1,0,2,4,"${item.idCode}"\r\n`;
+
+                // Separador
+                cmd += `BAR 40,230,730,4\r\n`;
+
+                // Detalles
+                cmd += `TEXT 40,260,"3",0,1,1,"Especie: ${item.especie}"\r\n`;
+                cmd += `TEXT 40,310,"3",0,1,1,"Calidad: ${item.calidad}"\r\n`;
+                cmd += `TEXT 40,350,"3",0,1,1,"Grosor: ${item.grosor}"\r\n`;
+                cmd += `TEXT 400,350,"3",0,1,1,"Cond: ${item.condicion}"\r\n`;
+                cmd += `TEXT 40,390,"3",0,1,1,"POA: ${item.poa}  Fecha: ${item.fecha}"\r\n`;
+
+                // Separador Inferior
+                cmd += `BAR 40,420,730,4\r\n`;
+
+                // Totales
+                cmd += `TEXT 40,450,"2",0,1,1,"PIEZAS"\r\n`;
+                cmd += `TEXT 40,500,"5",0,1,1,"${item.pzs}"\r\n`;
+
+                cmd += `TEXT 450,450,"2",0,1,1,"PIES TABLARES"\r\n`;
+                cmd += `TEXT 450,500,"5",0,1,1,"${item.pt}"\r\n`;
+
+                cmd += "PRINT 1,1\r\n";
+
+                const encodedData = encoder.encode(cmd);
+                const CHUNK_SIZE = 100; // Chunk size más grande para TSPL suele ser seguro
+                for (let i = 0; i < encodedData.length; i += CHUNK_SIZE) {
+                    await printCharacteristic.writeValue(encodedData.slice(i, i + CHUNK_SIZE));
+                    await new Promise(resolve => setTimeout(resolve, 20));
+                }
+                await new Promise(resolve => setTimeout(resolve, 500)); // Pausa entre etiquetas
+            }
+            alert("Impresión Bluetooth finalizada.");
+        }
+    </script>
+</body>
+</html>
