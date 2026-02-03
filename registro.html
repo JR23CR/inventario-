@@ -572,12 +572,13 @@
         let totalMetrosFardo = 0, totalP2Fardo = 0, totalM3Fardo = 0;
 
         currentDetalles.forEach(d => {
-            const m2_linea = (unidad === 'm2') ? d.piezas * (d.largo * 0.3048) * (anchoGlobal * 0.0254) : 0;
+            // CORRECCIÓN: Calcular M2 siempre, incluso si es ML (Tranquilla, Deck, Zocalo)
+            const m2_linea = d.piezas * (d.largo * 0.3048) * (anchoGlobal * 0.0254);
             const ml_linea = d.piezas * (d.largo * 0.3048);
             
-            const m2Real_linea = (unidad === 'ml') ? ml_linea * (anchoGlobal * 0.0254) : m2_linea;
-            const p2_linea = m2Real_linea * 10.7639;
-            const m3_linea = m2Real_linea * (grosorVal * 0.0254);
+            // CORRECCIÓN: Fórmula Pie Cuadrado (PT) = (Grosor * Ancho * Largo * Piezas) / 12
+            const p2_linea = (grosorVal * anchoGlobal * d.largo * d.piezas) / 12;
+            const m3_linea = m2_linea * (grosorVal * 0.0254);
 
             filasParaEnviar.push({
                 lote: lote,

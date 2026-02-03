@@ -824,15 +824,25 @@
                 const ancho = formatDim(getVal(['Ancho "', 'Ancho', 'ANCHO', 'ancho']));
                 const dimKey = `${grosor} x ${ancho}`;
                 
-                // Buscar M2 en varias columnas posibles
-                let m2Val = getVal(['M2', 'm2', 'Metros', 'M2_Total_Fardo']);
-                if (typeof m2Val === 'string') m2Val = m2Val.replace(/,/g, '');
-                const val = parseFloat(m2Val) || 0;
-                
                 const unidad = (getVal(['Unidad', 'UNIDAD', 'unidad']) || 'm2').toLowerCase();
+                let val = 0;
 
-                // Validar unidad para Tranquilla vs Otros
-                if (unitLabel === 'M²' && unidad === 'ml') return; 
+                if (unitLabel === 'ML') {
+                    let rawML = getVal(['ML', 'ml', 'Ml']);
+                    if (typeof rawML === 'string') rawML = rawML.replace(/,/g, '');
+                    val = parseFloat(rawML) || 0;
+                    
+                    if (val === 0) {
+                        let rawM2 = getVal(['M2', 'm2', 'Metros', 'M2_Total_Fardo']);
+                        if (typeof rawM2 === 'string') rawM2 = rawM2.replace(/,/g, '');
+                        val = parseFloat(rawM2) || 0;
+                    }
+                } else {
+                    if (unidad === 'ml') return;
+                    let rawM2 = getVal(['M2', 'm2', 'Metros', 'M2_Total_Fardo']);
+                    if (typeof rawM2 === 'string') rawM2 = rawM2.replace(/,/g, '');
+                    val = parseFloat(rawM2) || 0;
+                }
 
                 if (val > 0) {
                     dimensions.add(dimKey);

@@ -461,36 +461,33 @@
         btn.style.color = "#155724";
     }
 
-    async function imprimirFardoBT(index) {
+    async function imprimirFardoBT(index, silent = false) {
         if (!printCharacteristic) {
             await conectarBluetooth();
-            if (!printCharacteristic) return;
+            if (!printCharacteristic) {
+                if (!silent) alert("No se pudo conectar a la impresora.");
+                return;
+            }
         }
         
         try {
             // Llamada a la función del archivo EXTERNO: formato_etiqueta_producto_terminado.js
-            await imprimirEtiquetaTerminado(printCharacteristic, fardosDelLote[index]);
+            await imprimirEtiquetaTerminado(printCharacteristic, fardosDelLote[index], silent);
         } catch (e) {
-            alert("Error al llamar al script externo: " + e);
+            if (!silent) alert("Error al llamar al script externo: " + e);
             console.error(e);
         }
     }
 
     async function imprimirTodoBT() {
-        if (!printCharacteristic) {
-            await conectarBluetooth();
-            if (!printCharacteristic) return;
-        }
-
         if (!confirm(`¿Imprimir ${fardosDelLote.length} etiquetas por Bluetooth?`)) return;
 
-        for (const f of fardosDelLote) {
+        for (let i = 0; i < fardosDelLote.length; i++) {
             try {
-                // Llamada a la función del archivo EXTERNO
-                await imprimirEtiquetaTerminado(printCharacteristic, f, true);
+                await imprimirFardoBT(i, true); // Se llama a la función local en modo silencioso
                 await new Promise(r => setTimeout(r, 500)); 
             } catch (e) {
-                console.error("Error imprimiendo fardo " + f.fardoNo, e);
+                console.error("Error imprimiendo fardo " + fardosDelLote[i].fardoNo, e);
             }
         }
         alert("Impresión finalizada.");
