@@ -194,6 +194,7 @@
                 <select id="grosor" class="compact-input">
                     <option value="3/4">3/4"</option>
                     <option value="1/2">1/2"</option>
+                    <option value="4/4">4/4"</option>
                 </select>
             </div>
             <div>
@@ -217,7 +218,9 @@
         
         <div style="margin-top: 8px;">
             <label>Especie</label>
-            <input type="text" id="especie" value="Manchiche" class="compact-input">
+            <select id="especie" class="compact-input">
+                <!-- Se puebla dinámicamente desde JS -->
+            </select>
         </div>
 
         <hr>
@@ -295,6 +298,14 @@
     let selectedPiezas = 1;
     let autoPrint = true;
 
+    const especiesBase = [
+        "Maletio colorado", "Maletio blanco", "Jobillo", "Ramon oreja", "Pucte", 
+        "Chaltecoco", "Santa maria", "Cedro", "Pochote", "Cericote", "Manchiche", 
+        "Tzalam", "Chechen negro", "Jabin", "Cola de coche", "Hormigo", 
+        "Granadillo", "Rosul", "Palo Blanco", "Castaño", "Guayacán", "Silión", 
+        "Amapola", "Pasaque", "Catalox", "Chichipate", "Caoba", "Danto", "Gesmo"
+    ];
+
     function debug(msg, type='info') {
         console.log(`[${type.toUpperCase()}] ${msg}`);
     }
@@ -305,6 +316,7 @@
         const divCalidad = document.getElementById('div-calidad');
         const calidadSelect = document.getElementById('calidad');
         const anchoInput = document.getElementById('ancho');
+        const grosorSelect = document.getElementById('grosor');
 
         // Mostrar Calidad si es Piso, Deck o Zocalo
         if (prod === 'Piso Barnizado' || prod === 'Piso Crudo' || prod === 'Deck') {
@@ -313,6 +325,9 @@
                 <option value="Primera">Primera</option>
                 <option value="Segunda">Segunda</option>
             `;
+            if (prod === 'Deck') {
+                grosorSelect.value = '4/4';
+            }
         } else if (prod === 'Zocalo') {
             divCalidad.style.display = 'block';
             calidadSelect.innerHTML = `
@@ -361,6 +376,16 @@
 
         renderQuickButtons();
         handleProductChange(); // Inicializar estado de calidad
+        
+        // Poblar lista base de especies
+        const selectEsp = document.getElementById('especie');
+        especiesBase.sort().forEach(esp => {
+            const opt = document.createElement('option');
+            opt.value = esp;
+            opt.innerText = esp;
+            selectEsp.appendChild(opt);
+        });
+
         cargarInventarioRemoto();
         document.getElementById('loteId').addEventListener('input', actualizarLista);
         actualizarLista();
@@ -387,6 +412,21 @@
         .then(data => {
             inventarioRemoto = data;
             debug(`✅ Inventario remoto cargado: ${data.length} fardos`, 'success');
+            
+            // Agregar especies nuevas encontradas en el remoto que no estén en la base
+            const especiesRemotas = [...new Set(data.map(item => item['Especie'] || item['ESPECIE']))].filter(e => e);
+            const selectEsp = document.getElementById('especie');
+            const especiesExistentes = Array.from(selectEsp.options).map(o => o.value);
+            
+            especiesRemotas.forEach(esp => {
+                if (!especiesExistentes.includes(esp)) {
+                    const opt = document.createElement('option');
+                    opt.value = esp;
+                    opt.innerText = esp;
+                    selectEsp.appendChild(opt);
+                }
+            });
+
             actualizarLista();
         })
         .catch(error => {
@@ -525,7 +565,8 @@
 
         const producto = document.getElementById('producto').value;
         const anchoGlobal = parseFloat(document.getElementById('ancho').value) || 0;
-        const grosorStr = document.getElementById('grosor').value;
+        let grosorStr = document.getElementById('grosor').value;
+        if (producto === 'Deck') grosorStr = "4/4";
         const lote = document.getElementById('loteId').value;
         const fardoNo = document.getElementById('fardoNo').value;
         
