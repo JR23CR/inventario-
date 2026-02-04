@@ -264,9 +264,9 @@
                     <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
                     <td class="p-2 border">${grosor.toFixed(2)}</td>
-                    <td class="p-2 border">${ancho}</td>
+                    <td class="p-2 border">${ancho.toFixed(2)}</td>
                     <td class="p-2 border">${piezas}</td>
-                    <td class="p-2 border">${largo}</td>
+                    <td class="p-2 border">${largo.toFixed(2)}</td>
                     ${esLineal ? 
                         `<td class="p-2 border font-bold">${m2.toFixed(2)}</td>
                          <td class="p-2 border">${m3.toFixed(2)}</td>
@@ -535,8 +535,8 @@
                     totalM2 += m2; totalM3 += m3; totalP2 += p2; totalPL += pl; totalML += ml; totalPiezas += piezas;
 
                     const rowValues = esLineal ? 
-                        [displayItem, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
-                        [displayItem, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
+                        [displayItem, fardoId, parseFloat(grosor.toFixed(2)), parseFloat(ancho.toFixed(2)), piezas, parseFloat(largo.toFixed(2)), parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
+                        [displayItem, fardoId, parseFloat(grosor.toFixed(2)), parseFloat(ancho.toFixed(2)), piezas, parseFloat(largo.toFixed(2)), parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
                     
                     const row = worksheet.addRow(rowValues);
                     row.eachCell(cell => {
