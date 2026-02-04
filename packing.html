@@ -7,6 +7,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <style>
         @media print {
             .no-print { display: none !important; }
@@ -21,11 +23,7 @@
         <div class="p-8 border-b-4 border-slate-900">
             <div class="flex justify-between items-start mb-6">
                 <div class="flex items-center gap-4">
-                    <img src="logo_gibor.png" alt="GIBOR S.A." class="h-20 w-auto object-contain" onerror="this.src='https://via.placeholder.com/150?text=LOGO+GIBOR'">
-                    <div>
-                        <h1 class="text-3xl font-black text-slate-900 tracking-tighter">GIBOR, S.A.</h1>
-                        <p class="text-sm font-bold text-slate-500 uppercase">Sistema de Inventarios - Packing List</p>
-                    </div>
+                    <img src="logo-giborv2 (2).png" alt="GIBOR S.A." class="h-20 w-auto object-contain" onerror="this.src='https://via.placeholder.com/150?text=LOGO+GIBOR'">
                 </div>
                 <div class="text-right no-print">
                     <button onclick="exportarExcel()" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
@@ -256,7 +254,7 @@
                 // P2 (Pie Tablar) = (Piezas * Grosor" * Ancho" * Largo') / 12
                 const p2 = (piezas * grosor * ancho * largo) / 12;
                 // M3 = M2 * Grosor(m)
-                const m3 = m2 * (grosor * 0.0254);
+                const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                 // PL (Pie Lineal) = Piezas * Largo'
                 const pl = piezas * largo;
 
@@ -321,7 +319,7 @@
                 const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
                 const ml = piezas * (largo * 0.3048);
                 const p2 = (piezas * grosor * ancho * largo) / 12;
-                const m3 = m2 * (grosor * 0.0254);
+                const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                 const pl = piezas * largo;
 
                 tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml;
@@ -379,23 +377,28 @@
                     const f = fardosCargados[index];
                     const lote = getVal(f, ['Lote', '# Lote', 'LOTE']);
                     const fardo = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
-                    items.push({ lote: lote, fardo: fardo });
+                    if (fardo && lote) items.push({ lote: String(lote), fardo: String(fardo) });
                 });
 
                 const payload = {
-                    action: "mover",
-                    sheetOrigen: "PRODUCTO TERMINADO",
-                    sheetDestino: "SALIDA PTE",
-                    items: items
+                    tipo: "baja_producto_terminado",
+                    items: items,
+                    cliente: document.getElementById('cliente').value || "Venta Local"
                 };
 
-                await fetch(SCRIPT_URL, {
+                const response = await fetch(SCRIPT_URL, {
                     method: "POST",
                     body: JSON.stringify(payload)
                 });
-
-                alert("✅ Operación completada: Fardos movidos a SALIDA PTE.");
                 
+                const result = await response.json();
+                
+                if (result.result === "success") {
+                    alert("✅ Operación completada: Fardos movidos a SALIDA PTE.");
+                } else {
+                    alert("❌ Error: " + (result.message || "No se pudo completar la operación"));
+                }
+
                 // Recargar búsqueda para actualizar la tabla
                 buscarLote();
 
@@ -409,11 +412,23 @@
             }
         }
 
-        function exportarExcel() {
-            if (typeof XLSX === 'undefined') {
-                alert("Error: La librería Excel no se cargó. Revise su conexión.");
+        async function exportarExcel() {
+            if (typeof ExcelJS === 'undefined') {
+                alert("Error: La librería ExcelJS no se cargó. Revise su conexión.");
                 return;
             }
+
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Packing List');
+
+            // Configuración de página para impresión en Carta
+            worksheet.pageSetup = {
+                paperSize: 1, // Letter
+                orientation: 'portrait',
+                fitToPage: true,
+                fitToWidth: 1,
+                fitToHeight: 0
+            };
 
             const checkboxes = document.querySelectorAll('.fardo-check:checked');
             if (checkboxes.length === 0) return alert("⚠️ No hay fardos seleccionados para exportar.");
@@ -432,12 +447,50 @@
                 esLineal = true;
             }
 
+            // Insertar Logo (A2 a C4)
+            try {
+                const response = await fetch('logo-giborv2 (2).png');
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                const imageId = workbook.addImage({
+                    buffer: arrayBuffer,
+                    extension: 'png',
+                });
+                worksheet.addImage(imageId, {
+                    tl: { col: 0, row: 1 }, // A2
+                    br: { col: 3, row: 4 }, // D5 (cubre hasta C4)
+                    editAs: 'oneCell'
+                });
+            } catch (e) {
+                console.error("No se pudo cargar el logo para el Excel", e);
+            }
+
+            // Metadatos (A6 a A10)
+            const metadataStyle = { font: { bold: true } };
+            worksheet.getCell('A6').value = "Producto: " + document.getElementById('producto').value;
+            worksheet.getCell('A7').value = "Especie: " + document.getElementById('especie').value;
+            worksheet.getCell('A8').value = "Fecha: " + document.getElementById('fecha').value;
+            worksheet.getCell('A9').value = "Cliente: " + document.getElementById('cliente').value;
+            worksheet.getCell('A10').value = "Dirección: " + document.getElementById('direccion').value;
+            ['A6', 'A7', 'A8', 'A9', 'A10'].forEach(cell => worksheet.getCell(cell).font = metadataStyle);
+
+            // Encabezados de tabla (A12 a K12)
+            const headers = esLineal ? 
+                ["Item", "Paquete", "Grosor", "Ancho", "Piezas", "Largo '", "M2", "M3", "P2", "PL", "ML"] :
+                ["Item", "Paquete", "Grosor", "Ancho", "Piezas", "Largo '", "ML", "M3", "P2", "PL", "M2"];
+            
+            const headerRow = worksheet.getRow(12);
+            headerRow.values = headers;
+            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.eachCell(cell => {
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+                cell.alignment = { horizontal: 'center' };
+            });
+
             let lastFardo = null;
             let itemCounter = 1;
 
             try {
-                const data = [];
-                // Recorremos los checkboxes para obtener los datos calculados
                 checkboxes.forEach((cb, i) => {
                     const index = parseInt(cb.dataset.index);
                     const f = fardosCargados[index];
@@ -460,43 +513,31 @@
                     const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
                     const ml = piezas * (largo * 0.3048);
                     const p2 = (piezas * grosor * ancho * largo) / 12;
-                    const m3 = m2 * (grosor * 0.0254);
+                    const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                     const pl = piezas * largo;
 
-                    const rowData = {
-                        "Item": itemCounter,
-                        "Paquete": fardoId,
-                        "Grosor": grosor,
-                        "Ancho": ancho,
-                        "Piezas": piezas,
-                        "Largo": largo
-                    };
-
-                    if (esLineal) {
-                        rowData["M2"] = parseFloat(m2.toFixed(2));
-                        rowData["M3"] = parseFloat(m3.toFixed(2));
-                        rowData["P2"] = parseFloat(p2.toFixed(2));
-                        rowData["PL"] = parseFloat(pl.toFixed(2));
-                        rowData["ML"] = parseFloat(ml.toFixed(2));
-                    } else {
-                        rowData["ML"] = parseFloat(ml.toFixed(2));
-                        rowData["M3"] = parseFloat(m3.toFixed(2));
-                        rowData["P2"] = parseFloat(p2.toFixed(2));
-                        rowData["PL"] = parseFloat(pl.toFixed(2));
-                        rowData["M2"] = parseFloat(m2.toFixed(2));
-                    }
-
-                    data.push(rowData);
+                    const rowValues = esLineal ? 
+                        [itemCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
+                        [itemCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
+                    
+                    const row = worksheet.addRow(rowValues);
+                    row.eachCell(cell => {
+                        cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                        cell.alignment = { horizontal: 'center' };
+                    });
                 });
 
-                // Crear hoja de cálculo
-                const ws = XLSX.utils.json_to_sheet(data);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Packing List");
+                // Ajustar anchos de columna
+                worksheet.columns.forEach((col, i) => {
+                    col.width = i === 0 ? 6 : (i === 1 ? 12 : 10);
+                });
 
                 // Nombre del archivo
                 const cliente = document.getElementById('cliente').value.replace(/[^a-zA-Z0-9]/g, '_') || 'CLIENTE';
-                XLSX.writeFile(wb, `Packing_List_${cliente}.xlsx`);
+                
+                const buffer = await workbook.xlsx.writeBuffer();
+                saveAs(new Blob([buffer]), `Packing_List_${cliente}.xlsx`);
+
             } catch (e) {
                 console.error(e);
                 alert("Error al generar Excel: " + e.message);

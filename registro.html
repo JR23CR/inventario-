@@ -705,52 +705,76 @@
         const loteActual = document.getElementById('loteId').value;
 
         lista.innerHTML = "";
-        
-        const locales = fardosData.filter(f => String(f.lote) === String(loteActual));
+
         const remotos = inventarioRemoto.filter(f => String(f['# Lote']) === String(loteActual));
 
-        let totalMetros = 0;
-        let count = 0;
-        let unidadLote = 'm²';
+        // --- CÁLCULO DE TOTALES SOLO CON DATOS DE LA NUBE ---
+        let totalValorNube = 0;
+        let totalFardosNube = 0;
+        let unidadLote = 'm²'; // Unidad por defecto
 
-        if (locales.length > 0) {
-            unidadLote = (locales[0].unidad === 'ml' || locales[0].producto === 'Tranquilla') ? 'ml' : 'm²';
-        } else if (remotos.length > 0) {
-            unidadLote = (remotos[0]['Unidad'] || 'm2') === 'ml' ? 'ml' : 'm²';
+        // Determinar la unidad del lote basándose en el PRODUCTO del primer fardo
+        if (remotos.length > 0) {
+            const primerFardo = remotos[0];
+            const productoLote = primerFardo['Producto'] || '';
+            if (productoLote === 'Tranquilla' || productoLote === 'Zocalo' || productoLote === 'Deck') {
+                unidadLote = 'ml';
+            } else {
+                unidadLote = 'm²';
+            }
         }
 
-        locales.forEach(f => { totalMetros += parseFloat(f.m2) || 0; count++; });
-        remotos.forEach(f => { totalMetros += parseFloat(f['M2']) || 0; count++; });
+        remotos.forEach(f => {
+            // Sumar el valor correcto (M2 o ML) según la unidad determinada para el lote
+            if (unidadLote === 'ml') {
+                totalValorNube += parseFloat(f['ML'] || f['ml']) || 0;
+            } else {
+                totalValorNube += parseFloat(f['M2'] || f['m2']) || 0;
+            }
+        });
+        totalFardosNube = remotos.length;
         
+        // Actualizar el display del lote para mostrar solo totales de la nube
         if (loteActual) {
-            displayLote.innerHTML = `${loteActual} <br><small>(${count} Fardos - ${totalMetros.toFixed(2)} ${unidadLote})</small>`;
+            displayLote.innerHTML = `${loteActual} <br><small>(${totalFardosNube} Fardos en Nube - ${totalValorNube.toFixed(2)} ${unidadLote})</small>`;
         } else {
             displayLote.innerText = "---";
         }
         
+        // --- RENDERIZADO DE LISTA COMPLETA (NUBE + LOCALES NO SINCRONIZADOS) ---
+        const fardosRemotosSet = new Set(remotos.map(f => String(f['# Fardo'])));
+
+        // 1. Renderizar fardos de la nube
         remotos.forEach(f => {
-            const unidadRemota = (f['Unidad'] || 'm2') === 'ml' ? 'ml' : 'm²';
+            const unidadRemota = (f['Unidad'] || 'm2').toLowerCase() === 'ml' ? 'ml' : 'm²';
+            const valorRemoto = unidadRemota === 'ml' ? (f['ML'] || f['ml'] || 0) : (f['M2'] || f['m2'] || 0);
+
             const item = document.createElement('div');
             item.className = 'row-item';
             item.style.backgroundColor = '#f8f9fa'; 
-            item.style.borderLeft = '4px solid #95a5a6';
+            item.style.borderLeft = '4px solid #95a5a6'; // Gris para nube
             item.innerHTML = `
-                <span>☁️ Fardo: ${f['# Fardo']} (${f['M2']} ${unidadRemota})</span>
+                <span>☁️ Fardo: ${f['# Fardo']} (${valorRemoto} ${unidadRemota})</span>
                 <span style="font-size:0.8rem; color:#666;">${f['Calidad'] || ''}</span>
             `;
             lista.appendChild(item);
         });
 
+        // 2. Renderizar solo los fardos locales que aún no están en la nube
         fardosData.forEach((f, index) => {
             if (String(f.lote) !== String(loteActual)) return;
+
+            // Si el fardo ya fue mostrado desde la nube, no lo volvemos a mostrar
+            if (fardosRemotosSet.has(String(f.fardoNo))) return;
 
             const totalPiezas = f.detalles.reduce((acc, d) => acc + d.piezas, 0);
             const unidadLocal = f.unidad || 'm2';
             
             const item = document.createElement('div');
             item.className = 'row-item';
+            item.style.borderLeft = '4px solid #3498db'; // Azul para local
             item.innerHTML = `
-                <span>Fardo: ${f.fardoNo} (${totalPiezas} pzs - ${f.m2} ${unidadLocal})</span> 
+                <span>📱 Fardo: ${f.fardoNo} (${totalPiezas} pzs - ${f.m2} ${unidadLocal})</span> 
                 <div style="display:flex; gap:5px;">
                     <button onclick="guardarImagen(${index})" class="btn-small" style="background:#3498db; width:auto;">Img</button>
                     <button onclick="imprimirBluetooth(${index})" class="btn-small" style="background:#e67e22; width:auto;">BT</button>
