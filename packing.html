@@ -81,11 +81,11 @@
                         <th class="p-2 border border-slate-700">Ancho</th>
                         <th class="p-2 border border-slate-700">Piezas</th>
                         <th class="p-2 border border-slate-700">Largo '</th>
-                        <th class="p-2 border border-slate-700 bg-blue-900">M2</th>
-                        <th class="p-2 border border-slate-700 bg-blue-900">M³</th>
-                        <th class="p-2 border border-slate-700 bg-blue-900">P²</th>
-                        <th class="p-2 border border-slate-700 bg-blue-900">PL</th>
-                        <th class="p-2 border border-slate-700 bg-blue-900">ML</th>
+                        <th class="p-2 border border-slate-700 bg-slate-800">M2</th>
+                        <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
+                        <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
+                        <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
+                        <th class="p-2 border border-slate-700 bg-slate-800">ML</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="font-mono text-slate-700">
@@ -216,17 +216,17 @@
                 <th class="p-2 border border-slate-700">Piezas</th>
                 <th class="p-2 border border-slate-700">Largo '</th>
                 ${esLineal ? 
-                    `<th class="p-2 border border-slate-700 bg-blue-900">M2</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">M³</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">P²</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">PL</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">ML</th>` 
+                    `<th class="p-2 border border-slate-700 bg-slate-800">M2</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">ML</th>` 
                     : 
-                    `<th class="p-2 border border-slate-700 bg-blue-900">ML</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">M³</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">P²</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">PL</th>
-                     <th class="p-2 border border-slate-700 bg-blue-900">M2</th>`
+                    `<th class="p-2 border border-slate-700 bg-slate-800">ML</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
+                     <th class="p-2 border border-slate-700 bg-slate-800">M2</th>`
                 }
             `;
             
@@ -240,10 +240,10 @@
 
                 // Lógica de Item: Reiniciar a 1 si cambia el fardo
                 if (fardoId !== lastFardo) {
-                    itemCounter = 1;
+                    if (lastFardo !== null) itemCounter++;
                     lastFardo = fardoId;
                 } else {
-                    itemCounter++;
+                    // Mantiene el mismo itemCounter para el mismo fardo
                 }
 
                 // Fórmulas Corregidas (Coincidentes con Google Sheets / Registro)
@@ -273,9 +273,9 @@
                          <td class="p-2 border">${m3.toFixed(2)}</td>
                          <td class="p-2 border">${p2.toFixed(2)}</td>
                          <td class="p-2 border">${pl.toFixed(2)}</td>
-                         <td class="p-2 border font-bold text-blue-700">${ml.toFixed(2)}</td>`
+                         <td class="p-2 border font-bold text-slate-700">${ml.toFixed(2)}</td>`
                         :
-                        `<td class="p-2 border font-bold text-blue-700">${ml.toFixed(2)}</td>
+                        `<td class="p-2 border font-bold text-slate-700">${ml.toFixed(2)}</td>
                          <td class="p-2 border">${m3.toFixed(2)}</td>
                          <td class="p-2 border">${p2.toFixed(2)}</td>
                          <td class="p-2 border">${pl.toFixed(2)}</td>
@@ -334,13 +334,13 @@
                          <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black text-blue-800">${tML.toFixed(2)}</td>`
+                         <td class="p-2 border font-black text-slate-800">${tML.toFixed(2)}</td>`
                         :
-                        `<td class="p-2 border font-black text-blue-800">${tML.toFixed(2)}</td>
+                        `<td class="p-2 border font-black text-slate-800">${tML.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black text-blue-800">${tM2.toFixed(2)}</td>`
+                         <td class="p-2 border font-black text-slate-800">${tM2.toFixed(2)}</td>`
                     }
                 </tr>
             `;
@@ -457,8 +457,8 @@
                     extension: 'png',
                 });
                 worksheet.addImage(imageId, {
-                    tl: { col: 0, row: 1 }, // A2
-                    br: { col: 3, row: 4 }, // D5 (cubre hasta C4)
+                    tl: { col: 0.1, row: 0.5 }, 
+                    extents: { width: 180, height: 70 },
                     editAs: 'oneCell'
                 });
             } catch (e) {
@@ -483,12 +483,13 @@
             headerRow.values = headers;
             headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
             headerRow.eachCell(cell => {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F172A' } };
+                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
                 cell.alignment = { horizontal: 'center' };
             });
 
             let lastFardo = null;
-            let itemCounter = 1;
+            let packageCounter = 0;
+            let totalM2 = 0, totalM3 = 0, totalP2 = 0, totalPL = 0, totalML = 0, totalPiezas = 0;
 
             try {
                 checkboxes.forEach((cb, i) => {
@@ -504,10 +505,10 @@
                     const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
 
                     if (fardoId !== lastFardo) {
-                        itemCounter = 1;
+                        packageCounter++;
                         lastFardo = fardoId;
                     } else {
-                        itemCounter++;
+                        // Mismo paquete
                     }
 
                     const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
@@ -516,9 +517,11 @@
                     const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                     const pl = piezas * largo;
 
+                    totalM2 += m2; totalM3 += m3; totalP2 += p2; totalPL += pl; totalML += ml; totalPiezas += piezas;
+
                     const rowValues = esLineal ? 
-                        [itemCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
-                        [itemCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
+                        [packageCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
+                        [packageCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
                     
                     const row = worksheet.addRow(rowValues);
                     row.eachCell(cell => {
@@ -527,10 +530,23 @@
                     });
                 });
 
-                // Ajustar anchos de columna
-                worksheet.columns.forEach((col, i) => {
-                    col.width = i === 0 ? 6 : (i === 1 ? 12 : 10);
+                // Fila de Totales
+                const totalRowValues = esLineal ? 
+                    ['TOTAL', packageCounter, '', '', totalPiezas, '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
+                    ['TOTAL', packageCounter, '', '', totalPiezas, '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
+                
+                const totalRow = worksheet.addRow(totalRowValues);
+                totalRow.font = { bold: true };
+                totalRow.eachCell(cell => {
+                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                 });
+
+                // Ajustar anchos de columna
+                worksheet.columns = [
+                    { width: 5 }, { width: 12 }, { width: 7 }, { width: 7 }, { width: 7 }, 
+                    { width: 7 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }
+                ];
 
                 // Nombre del archivo
                 const cliente = document.getElementById('cliente').value.replace(/[^a-zA-Z0-9]/g, '_') || 'CLIENTE';
