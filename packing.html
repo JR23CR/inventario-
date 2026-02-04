@@ -238,12 +238,10 @@
                 const largo = parseFloat(getVal(f, ['Largo', 'LARGO', "Largo '", 'Largo_Ft'])) || 0;
                 const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
 
-                // Lógica de Item: Reiniciar a 1 si cambia el fardo
+                let displayItem = "";
                 if (fardoId !== lastFardo) {
-                    if (lastFardo !== null) itemCounter++;
+                    displayItem = "1";
                     lastFardo = fardoId;
-                } else {
-                    // Mantiene el mismo itemCounter para el mismo fardo
                 }
 
                 // Fórmulas Corregidas (Coincidentes con Google Sheets / Registro)
@@ -262,7 +260,7 @@
                 row.className = "border-b border-gray-100 hover:bg-blue-50 transition-colors";
                 row.innerHTML = `
                     <td class="p-2 border no-print"><input type="checkbox" checked class="w-4 h-4 fardo-check" data-index="${index}"></td>
-                    <td class="p-2 border">${itemCounter}</td>
+                    <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
                     <td class="p-2 border">${grosor.toFixed(2)}</td>
                     <td class="p-2 border">${ancho}</td>
@@ -421,6 +419,12 @@
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Packing List');
 
+            // Definir anchos de columna al principio para evitar errores de 'undefined'
+            worksheet.columns = [
+                { width: 6 }, { width: 14 }, { width: 9 }, { width: 9 }, { width: 9 }, 
+                { width: 9 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }
+            ];
+
             // Configuración de página para impresión en Carta
             worksheet.pageSetup = {
                 paperSize: 1, // Letter
@@ -457,8 +461,8 @@
                     extension: 'png',
                 });
                 worksheet.addImage(imageId, {
-                    tl: { col: 0.1, row: 0.5 }, 
-                    extents: { width: 180, height: 70 },
+                    tl: { col: 0, row: 1 }, // Celda A2
+                    extents: { width: 200, height: 80 }, // Tamaño fijo para no estirar
                     editAs: 'oneCell'
                 });
             } catch (e) {
@@ -504,11 +508,11 @@
                     const largo = parseFloat(getVal(f, ['Largo', 'LARGO', "Largo '", 'Largo_Ft'])) || 0;
                     const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
 
+                    let displayItem = "";
                     if (fardoId !== lastFardo) {
+                        displayItem = 1;
                         packageCounter++;
                         lastFardo = fardoId;
-                    } else {
-                        // Mismo paquete
                     }
 
                     const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
@@ -520,8 +524,8 @@
                     totalM2 += m2; totalM3 += m3; totalP2 += p2; totalPL += pl; totalML += ml; totalPiezas += piezas;
 
                     const rowValues = esLineal ? 
-                        [packageCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
-                        [packageCounter, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
+                        [displayItem, fardoId, grosor, ancho, piezas, largo, parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
+                        [displayItem, fardoId, grosor, ancho, piezas, largo, parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
                     
                     const row = worksheet.addRow(rowValues);
                     row.eachCell(cell => {
@@ -541,12 +545,6 @@
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
                     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                 });
-
-                // Ajustar anchos de columna
-                worksheet.columns = [
-                    { width: 5 }, { width: 12 }, { width: 7 }, { width: 7 }, { width: 7 }, 
-                    { width: 7 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }, { width: 9 }
-                ];
 
                 // Nombre del archivo
                 const cliente = document.getElementById('cliente').value.replace(/[^a-zA-Z0-9]/g, '_') || 'CLIENTE';
