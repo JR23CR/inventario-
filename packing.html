@@ -73,7 +73,7 @@
         <div class="p-0 overflow-x-auto">
             <table id="packingTable" class="w-full text-[11px] text-center border-collapse">
                 <thead>
-                    <tr class="bg-slate-900 text-white uppercase tracking-tighter">
+                    <tr class="text-slate-900 uppercase tracking-tighter border-y-2 border-slate-900">
                         <th class="p-2 border border-slate-700 no-print">Incluir</th>
                         <th class="p-2 border border-slate-700">Item</th>
                         <th class="p-2 border border-slate-700">Paquete</th>
@@ -81,11 +81,11 @@
                         <th class="p-2 border border-slate-700">Ancho</th>
                         <th class="p-2 border border-slate-700">Piezas</th>
                         <th class="p-2 border border-slate-700">Largo '</th>
-                        <th class="p-2 border border-slate-700 bg-slate-800">M2</th>
-                        <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
-                        <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
-                        <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
-                        <th class="p-2 border border-slate-700 bg-slate-800">ML</th>
+                        <th class="p-2 border border-slate-700">M2</th>
+                        <th class="p-2 border border-slate-700">M³</th>
+                        <th class="p-2 border border-slate-700">P²</th>
+                        <th class="p-2 border border-slate-700">PL</th>
+                        <th class="p-2 border border-slate-700">ML</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="font-mono text-slate-700">
@@ -207,6 +207,7 @@
 
             // Actualizar Encabezados dinámicamente
             const theadRow = document.querySelector('#packingTable thead tr');
+            theadRow.style.height = "52px";
             theadRow.innerHTML = `
                 <th class="p-2 border border-slate-700 no-print">Incluir</th>
                 <th class="p-2 border border-slate-700">Item</th>
@@ -216,17 +217,17 @@
                 <th class="p-2 border border-slate-700">Piezas</th>
                 <th class="p-2 border border-slate-700">Largo '</th>
                 ${esLineal ? 
-                    `<th class="p-2 border border-slate-700 bg-slate-800">M2</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">ML</th>` 
+                    `<th class="p-2 border border-slate-700">M2</th>
+                     <th class="p-2 border border-slate-700">M³</th>
+                     <th class="p-2 border border-slate-700">P²</th>
+                     <th class="p-2 border border-slate-700">PL</th>
+                     <th class="p-2 border border-slate-700">ML</th>` 
                     : 
-                    `<th class="p-2 border border-slate-700 bg-slate-800">ML</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">M³</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">P²</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">PL</th>
-                     <th class="p-2 border border-slate-700 bg-slate-800">M2</th>`
+                    `<th class="p-2 border border-slate-700">ML</th>
+                     <th class="p-2 border border-slate-700">M³</th>
+                     <th class="p-2 border border-slate-700">P²</th>
+                     <th class="p-2 border border-slate-700">PL</th>
+                     <th class="p-2 border border-slate-700">M2</th>`
                 }
             `;
             
@@ -333,22 +334,22 @@
 
             const foot = document.getElementById('tableFoot');
             foot.innerHTML = `
-                <tr class="bg-slate-200 text-slate-900 uppercase text-[10px]">
+                <tr class="text-slate-900 uppercase text-[10px] border-t-2 border-slate-900">
                     <td class="p-2 border no-print"></td>
                     <td class="p-2 border font-black text-center">${packageCount}</td>
-                    <td colspan="5" class="p-2 border text-right font-black">TOTALES SELECCIONADOS:</td>
+                    <td colspan="5" class="p-2 border text-right font-black"></td>
                     ${esLineal ? 
                         `<td class="p-2 border font-black">${tM2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black text-slate-800">${tML.toFixed(2)}</td>`
+                         <td class="p-2 border font-black">${tML.toFixed(2)}</td>`
                         :
-                        `<td class="p-2 border font-black text-slate-800">${tML.toFixed(2)}</td>
+                        `<td class="p-2 border font-black">${tML.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black text-slate-800">${tM2.toFixed(2)}</td>`
+                         <td class="p-2 border font-black">${tM2.toFixed(2)}</td>`
                     }
                 </tr>
             `;
@@ -390,7 +391,7 @@
 
                 const payload = {
                     tipo: "baja_producto_terminado",
-                    items: items,
+                    fardos: items.map(i => i.fardo),
                     cliente: document.getElementById('cliente').value || "Venta Local"
                 };
 
@@ -465,8 +466,8 @@
                     extension: 'png',
                 });
                 worksheet.addImage(imageId, {
-                    tl: { col: 0, row: 1 }, // Celda A2
-                    extents: { width: 200, height: 80 }, // Tamaño fijo para no estirar
+                    tl: { col: 0, row: 1 }, // A2
+                    br: { col: 3, row: 4 }, // D5 (cubre hasta C4)
                     editAs: 'oneCell'
                 });
             } catch (e) {
@@ -489,10 +490,16 @@
             
             const headerRow = worksheet.getRow(12);
             headerRow.values = headers;
-            headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            headerRow.height = 39; // 52px aprox
+            headerRow.font = { bold: true, color: { argb: 'FF000000' } };
             headerRow.eachCell(cell => {
-                cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF333333' } };
-                cell.alignment = { horizontal: 'center' };
+                cell.alignment = { horizontal: 'center', vertical: 'middle' };
+                cell.border = {
+                    top: {style:'thin'},
+                    left: {style:'thin'},
+                    bottom: {style:'thin'},
+                    right: {style:'thin'}
+                };
             });
 
             let lastFardo = null;
@@ -540,18 +547,17 @@
 
                 // Fila de Totales
                 const totalRowValues = esLineal ? 
-                    [packageCounter, 'TOTAL PAQUETES', '', '', totalPiezas, '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
-                    [packageCounter, 'TOTAL PAQUETES', '', '', totalPiezas, '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
+                    [packageCounter, '', '', '', '', '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
+                    [packageCounter, '', '', '', '', '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
                 
                 const totalRow = worksheet.addRow(totalRowValues);
                 totalRow.font = { bold: true };
                 totalRow.eachCell(cell => {
-                    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
                     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
                 });
 
-                // Ajustar anchos de columna al final para evitar el error de 'width'
-                const columnWidths = [8, 18, 10, 10, 10, 10, 12, 12, 12, 12, 12];
+                // Ajustar anchos de columna al final de forma segura para evitar error de 'width'
+                const columnWidths = [5, 12, 7, 7, 7, 7, 9, 9, 9, 9, 9];
                 columnWidths.forEach((w, i) => {
                     worksheet.getColumn(i + 1).width = w;
                 });
