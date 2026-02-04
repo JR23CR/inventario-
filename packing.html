@@ -391,7 +391,7 @@
 
                 const payload = {
                     tipo: "baja_producto_terminado",
-                    fardos: items.map(i => i.fardo),
+                    items: items,
                     cliente: document.getElementById('cliente').value || "Venta Local"
                 };
 
