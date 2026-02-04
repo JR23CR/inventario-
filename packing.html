@@ -287,7 +287,9 @@
 
         function actualizarTotales() {
             const checkboxes = document.querySelectorAll('.fardo-check:checked');
-            let tM2 = 0, tM3 = 0, tP2 = 0, tPL = 0, tML = 0;
+            let tM2 = 0, tM3 = 0, tP2 = 0, tPL = 0, tML = 0, tPiezas = 0;
+            let lastFardo = null;
+            let packageCount = 0;
             
             const productoInput = document.getElementById('producto').value.toLowerCase();
             
@@ -309,6 +311,12 @@
                 const f = fardosCargados[index];
                 if (!f) return;
 
+                const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
+                if (fardoId !== lastFardo) {
+                    packageCount++;
+                    lastFardo = fardoId;
+                }
+
                 const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
                 const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
                 const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
@@ -320,13 +328,15 @@
                 const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                 const pl = piezas * largo;
 
-                tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml;
+                tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml; tPiezas += piezas;
             });
 
             const foot = document.getElementById('tableFoot');
             foot.innerHTML = `
                 <tr class="bg-slate-200 text-slate-900 uppercase text-[10px]">
-                    <td colspan="7" class="p-2 border text-right font-black">TOTALES SELECCIONADOS:</td>
+                    <td class="p-2 border no-print"></td>
+                    <td class="p-2 border font-black text-center">${packageCount}</td>
+                    <td colspan="5" class="p-2 border text-right font-black">TOTALES SELECCIONADOS:</td>
                     ${esLineal ? 
                         `<td class="p-2 border font-black">${tM2.toFixed(2)}</td>
                          <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
@@ -418,12 +428,6 @@
 
             const workbook = new ExcelJS.Workbook();
             const worksheet = workbook.addWorksheet('Packing List');
-
-            // Definir anchos de columna al principio para evitar errores de 'undefined'
-            worksheet.columns = [
-                { width: 6 }, { width: 14 }, { width: 9 }, { width: 9 }, { width: 9 }, 
-                { width: 9 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 11 }
-            ];
 
             // Configuración de página para impresión en Carta
             worksheet.pageSetup = {
@@ -536,14 +540,20 @@
 
                 // Fila de Totales
                 const totalRowValues = esLineal ? 
-                    ['TOTAL', packageCounter, '', '', totalPiezas, '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
-                    ['TOTAL', packageCounter, '', '', totalPiezas, '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
+                    [packageCounter, 'TOTAL PAQUETES', '', '', totalPiezas, '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
+                    [packageCounter, 'TOTAL PAQUETES', '', '', totalPiezas, '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
                 
                 const totalRow = worksheet.addRow(totalRowValues);
                 totalRow.font = { bold: true };
                 totalRow.eachCell(cell => {
                     cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFEEEEEE' } };
                     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                });
+
+                // Ajustar anchos de columna al final para evitar el error de 'width'
+                const columnWidths = [8, 18, 10, 10, 10, 10, 12, 12, 12, 12, 12];
+                columnWidths.forEach((w, i) => {
+                    worksheet.getColumn(i + 1).width = w;
                 });
 
                 // Nombre del archivo
