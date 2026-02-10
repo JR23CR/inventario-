@@ -1,0 +1,1434 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control de Activos - GIBOR</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Lucide Icons (CORREGIDO: Enlace directo a la versión UMD estable) -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <!-- JsBarcode -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f5f9; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .animate-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+        
+        /* Estilos de Impresión (Etiqueta 3x2) */
+        #printable-area { display: none; }
+        @media print {
+            @page { size: 3in 2in; margin: 0; }
+            
+            /* OCULTAR TODO EL CONTENIDO DE LA APP PARA EVITAR HOJAS EXTRA */
+            body * { visibility: hidden; }
+            #root { display: none !important; }
+            
+            html, body { width: 3in; height: 2in; margin: 0; padding: 0; overflow: hidden; background: white; }
+            
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { 
+                position: fixed;
+                left: 0; top: 0; 
+                width: 3in; height: 2in; 
+                display: flex !important; 
+                align-items: center; justify-content: center;
+                background: white;
+                z-index: 9999;
+                overflow: hidden; /* Asegura que nada se salga de las 3x2 */
+            }
+            .label-container {
+                width: 2.8in; height: 1.8in; /* Margen seguro para evitar cortes */
+                display: flex; flex-direction: column;
+                font-family: 'Arial', sans-serif;
+                justify-content: flex-start;
+                text-align: center;
+                color: black !important;
+                border: 2px solid black; /* Marco profesional */
+                padding: 4px;
+                box-sizing: border-box;
+                page-break-after: always; /* Importante para impresión masiva */
+            }
+            .label-container:last-child { page-break-after: avoid; }
+            .lbl-brand {
+                font-size: 7pt;
+                font-weight: bold;
+                letter-spacing: 1px;
+                border-bottom: 1px solid black;
+                width: 100%;
+                margin-bottom: 4px;
+                padding-bottom: 2px;
+            }
+            .lbl-desc { 
+                font-weight: 900;
+                font-size: 12pt; 
+                text-transform: uppercase; 
+                line-height: 1;
+                max-height: 0.6in;
+                overflow: hidden;
+                width: 100%;
+                text-align: center;
+                display: block;
+                flex-shrink: 0; /* OBLIGATORIO: Evita que el texto desaparezca */
+                color: black !important;
+            }
+            .lbl-marca {
+                font-size: 10pt;
+                font-weight: bold;
+                text-transform: uppercase;
+                margin-top: 2px;
+                flex-shrink: 0;
+                color: black !important;
+            }
+            .lbl-meta-row {
+                display: flex; justify-content: center; gap: 8px;
+                width: 100%;
+                font-size: 9pt; font-weight: bold; text-transform: uppercase;
+                margin-top: 2px;
+                flex-shrink: 0;
+                color: black !important;
+            }
+            .lbl-category { 
+                font-size: 8pt; font-weight: bold; text-transform: uppercase; 
+                border-top: 2px solid black; padding-top: 2px; margin-top: 2px; 
+                width: 100%;
+                text-align: center;
+                flex-shrink: 0; /* OBLIGATORIO: Evita que el texto desaparezca */
+                color: black !important;
+            }
+            .lbl-barcode-box { 
+                flex-grow: 1; 
+                display: flex; 
+                align-items: center; 
+                justify-content: center; 
+                padding: 2px 0; 
+                width: 100%;
+                overflow: hidden;
+            }
+            svg { width: 98%; height: 100%; max-height: 0.7in; }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-slate-800">
+    <!-- Plantilla de Impresión PC -->
+    <div id="printable-area"></div>
+
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo, useRef } = React;
+
+        // --- ICON ADAPTER (CORREGIDO) ---
+        // Este componente se asegura de traducir los nombres de React a los nombres de la librería estándar
+        const Icon = ({ name, size = 24, className = "", ...props }) => {
+            // Verificar si Lucide cargó correctamente
+            if (typeof lucide === 'undefined' || !lucide.icons) {
+                return <span className="text-red-500 text-xs font-bold" title="Error cargando librería">?</span>;
+            }
+
+            // Convertir de PascalCase (LayoutDashboard) a kebab-case (layout-dashboard)
+            const iconName = name
+                .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
+                .replace(/([A-Z])([A-Z][a-z])/g, '$1-$2')
+                .toLowerCase();
+            
+            // Intentar encontrar el icono
+            const iconKey = Object.keys(lucide.icons).find(key => key.toLowerCase() === iconName.replace(/-/g, ''));
+            
+            if (iconKey || lucide.icons[iconName]) {
+                const finalKey = iconKey || iconName;
+                // Convert props to SVG string using Lucide's JS API
+                // Nota: En la versión UMD, lucide.icons contiene las definiciones, no la función toSvg directamente a veces en versiones nuevas
+                // Usamos createIcons para generar el SVG o accedemos al nodo
+                
+                // Fallback manual simple para asegurar renderizado
+                try {
+                    const iconNode = lucide.icons[finalKey];
+                    // Construir SVG manualmente si toSvg no está disponible directamente en el objeto nodo
+                    const svgContent = iconNodeToSvg(iconNode, { width: size, height: size, class: className, ...props });
+                    return <span dangerouslySetInnerHTML={{ __html: svgContent }} style={{ display: 'inline-flex', alignItems: 'center' }} />;
+                } catch (e) {
+                    console.error("Error pintando icono", name, e);
+                }
+            }
+            
+            // Intento secundario directo (por si el nombre coincide exactamente)
+            if (lucide.icons[name]) {
+                 const svgContent = iconNodeToSvg(lucide.icons[name], { width: size, height: size, class: className, ...props });
+                 return <span dangerouslySetInnerHTML={{ __html: svgContent }} style={{ display: 'inline-flex', alignItems: 'center' }} />;
+            }
+
+            return <span className="text-gray-400 text-xs font-bold" title={`Icono no encontrado: ${name}`}>?</span>;
+        };
+
+        // Helper para convertir la definición del icono de Lucide a string SVG
+        function iconNodeToSvg(iconNode, attrs) {
+            const tag = 'svg';
+            const attributes = {
+                xmlns: "http://www.w3.org/2000/svg",
+                width: 24,
+                height: 24,
+                viewBox: "0 0 24 24",
+                fill: "none",
+                stroke: "currentColor",
+                "stroke-width": 2,
+                "stroke-linecap": "round",
+                "stroke-linejoin": "round",
+                ...attrs
+            };
+            
+            // Si iconNode es un array (definición interna)
+            const children = Array.isArray(iconNode) ? iconNode : []; 
+            // En versiones nuevas de UMD, iconNode puede ser un objeto con [0] tag, [1] attrs, [2] children
+            
+            // Simplificación: Usamos lucide.createElement si existe, si no, intentamos renderizar
+            if (typeof lucide.createIcons === 'function') {
+                // Esta es una aproximación. Para React directo sin build step es complejo.
+                // Mejor estrategia: Mapeo directo de nombres comunes
+            }
+            
+            // ESTRATEGIA SEGURA PARA CDN:
+            // El objeto lucide.icons en CDN suele tener la estructura [tag, attrs, children] o similar.
+            // Para simplicidad en este entorno sin compilador, vamos a confiar en que la librería cargó.
+            // Si falla, retornamos un placeholder SVG genérico.
+            
+            return `<svg xmlns="http://www.w3.org/2000/svg" width="${attrs.width}" height="${attrs.height}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="${attrs.class}"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>`; 
+            // Nota: Arriba puse un fallback visual. 
+            // Pero para que funcione REALMENTE con el script de Lucide actual:
+            // Lucide en browser reemplaza etiquetas <i> o <span> con clase.
+            // Vamos a cambiar la estrategia del componente Icon para usar <i data-lucide={name}></i> y llamar lucide.createIcons()
+        }
+
+        // --- COMPONENTE DE ICONO ACTUALIZADO PARA FUNCIONAR CON CDN ---
+        const LucideIcon = ({ name, size = 20, className = "" }) => {
+            const iconRef = useRef(null);
+            
+            // Convertir CamelCase a kebab-case
+            const kebabName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+
+            useEffect(() => {
+                if (typeof lucide !== 'undefined' && lucide.createIcons) {
+                    lucide.createIcons({
+                        icons: { [name]: true }, // Intentar activar solo este icono si es posible, o escanear
+                        nameAttr: 'data-lucide',
+                        attrs: {
+                            class: className,
+                            width: size,
+                            height: size
+                        }
+                    });
+                    // Re-scan específico para este elemento si la librería lo permite, 
+                    // o simplemente dejar que createIcons corra en el DOM.
+                    // La versión UMD de lucide busca elementos con data-lucide.
+                    lucide.createIcons();
+                }
+            }, [name, size, className]);
+
+            return <i data-lucide={kebabName} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>;
+        };
+
+        // Mapeo de iconos usados
+        const Icons = {
+            Package: (p) => <LucideIcon name="package" {...p} />,
+            Search: (p) => <LucideIcon name="search" {...p} />,
+            Plus: (p) => <LucideIcon name="plus" {...p} />,
+            RefreshCw: (p) => <LucideIcon name="refresh-cw" {...p} />,
+            Printer: (p) => <LucideIcon name="printer" {...p} />,
+            Bluetooth: (p) => <LucideIcon name="bluetooth" {...p} />,
+            AlertTriangle: (p) => <LucideIcon name="alert-triangle" {...p} />,
+            CheckCircle2: (p) => <LucideIcon name="check-circle-2" {...p} />,
+            Tag: (p) => <LucideIcon name="tag" {...p} />,
+            Barcode: (p) => <LucideIcon name="barcode" {...p} />,
+            ScanLine: (p) => <LucideIcon name="scan-line" {...p} />,
+            X: (p) => <LucideIcon name="x" {...p} />,
+            User: (p) => <LucideIcon name="user" {...p} />,
+            MapPin: (p) => <LucideIcon name="map-pin" {...p} />,
+            Download: (p) => <LucideIcon name="download" {...p} />,
+            LayoutDashboard: (p) => <LucideIcon name="layout-dashboard" {...p} />,
+            Warehouse: (p) => <LucideIcon name="warehouse" {...p} />,
+            Home: (p) => <LucideIcon name="home" {...p} />,
+            ArrowRightLeft: (p) => <LucideIcon name="arrow-right-left" {...p} />,
+            ArrowUpRight: (p) => <LucideIcon name="arrow-up-right" {...p} />,
+            ArrowDownLeft: (p) => <LucideIcon name="arrow-down-left" {...p} />,
+            History: (p) => <LucideIcon name="history" {...p} />,
+            Settings: (p) => <LucideIcon name="settings" {...p} />,
+            UserCheck: (p) => <LucideIcon name="user-check" {...p} />,
+            Box: (p) => <LucideIcon name="box" {...p} />,
+            Layers: (p) => <LucideIcon name="layers" {...p} />,
+            Briefcase: (p) => <LucideIcon name="briefcase" {...p} />,
+            FileText: (p) => <LucideIcon name="file-text" {...p} />,
+            Split: (p) => <LucideIcon name="split" {...p} />,
+            Merge: (p) => <LucideIcon name="merge" {...p} />,
+            ArrowLeft: (p) => <LucideIcon name="arrow-left" {...p} />,
+            CheckSquare: (p) => <LucideIcon name="check-square" {...p} />,
+            Edit: (p) => <LucideIcon name="edit" {...p} />
+        };
+
+        const { 
+            Package, Search, Plus, RefreshCw, Printer, Bluetooth, BluetoothConnected, 
+            AlertTriangle, CheckCircle2, Tag, Barcode, ScanLine, X, User, 
+            MapPin, Download, LayoutDashboard, Warehouse, Home, ArrowRightLeft,
+            ArrowUpRight, ArrowDownLeft, History, Settings, UserCheck, Box, Layers,
+            Briefcase, FileText, Split, Merge, ArrowLeft, CheckSquare, Edit
+        } = Icons;
+
+        // --- CONFIGURACIÓN ---
+        const APP_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec"; 
+        const PREFIX = "GB"; 
+        const PADDING = 5; 
+        const LOW_STOCK_THRESHOLD = 3; 
+
+        // --- ERROR BOUNDARY (Para evitar pantalla blanca) ---
+        class ErrorBoundary extends React.Component {
+            constructor(props) {
+                super(props);
+                this.state = { hasError: false, error: null };
+            }
+
+            static getDerivedStateFromError(error) {
+                return { hasError: true, error };
+            }
+
+            componentDidCatch(error, errorInfo) {
+                console.error("ErrorBoundary caught an error", error, errorInfo);
+            }
+
+            render() {
+                if (this.state.hasError) {
+                    return (
+                        <div className="min-h-screen flex items-center justify-center bg-red-50 p-4">
+                            <div className="bg-white p-8 rounded-2xl shadow-xl border border-red-100 max-w-md text-center">
+                                <div className="mx-auto bg-red-100 w-16 h-16 rounded-full flex items-center justify-center mb-4">
+                                    <span className="text-2xl">⚠️</span>
+                                </div>
+                                <h2 className="text-xl font-black text-red-600 mb-2">Algo salió mal</h2>
+                                <p className="text-slate-600 text-sm mb-6">Ocurrió un error inesperado. Por favor, recarga la página para continuar.</p>
+                                <pre className="text-xs text-left bg-slate-900 text-red-400 p-3 rounded mb-6 overflow-auto max-h-32">{this.state.error && this.state.error.toString()}</pre>
+                                <button onClick={() => window.location.reload()} className="w-full bg-red-600 hover:bg-red-700 text-white font-bold py-3 rounded-xl transition-all">
+                                    Recargar Página
+                                </button>
+                            </div>
+                        </div>
+                    );
+                }
+                return this.props.children;
+            }
+        }
+
+        const DEFAULT_ASSIGNMENTS = {
+            "ELDER GARCIA": "TALLER MANTENIMIENTO",
+            "LEMUEL GALDAMEZ": "TALLER MECANICA",
+            "ALEXIS CHABLE": "TALLER MECANICA",
+            "ERVIN PAREDES": "FABRICA",
+            "NOE GARCIA": "FABRICA",
+            "EVER MARTINEZ": "FABRICA",
+            "ESAU MARTINEZ": "CLASIFICACION",
+            "FRANCISCO VELASQUEZ": "PINCHAZO",
+            "BODEGA": "ALMACENAMIENTO" 
+        };
+
+        const BODEGAS_LIST = ["OFICINA", "CASA BLANCA", "BODEGA CENTRAL"];
+        const CATEGORIES_LIST = ["HERRAMIENTA ELÉCTRICA", "HERRAMIENTA MANUAL", "CONSUMIBLES", "EPP / SEGURIDAD", "REPUESTOS", "MOBILIARIO", "OTRO"];
+
+        function App() {
+            const [inventory, setInventory] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [printer, setPrinter] = useState(null);
+            const [characteristic, setCharacteristic] = useState(null);
+            const [nextId, setNextId] = useState(`${PREFIX}-00000`);
+            const [isScannerMode, setIsScannerMode] = useState(false);
+            
+            // Filtros
+            const [viewMode, setViewMode] = useState('TODO'); 
+            const [activeAsset, setActiveAsset] = useState(null); 
+            
+            // --- ESTADOS PARA SELECCIÓN MÚLTIPLE ---
+            const [selectedIds, setSelectedIds] = useState(new Set());
+            const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+            const [bulkForm, setBulkForm] = useState({ person: '', area: '', notes: '' });
+            const [bulkQuantities, setBulkQuantities] = useState({}); // Mapa { id: cantidad }
+            
+            // --- ESTADO EDICIÓN ---
+            const [isEditing, setIsEditing] = useState(false);
+            const [editForm, setEditForm] = useState({});
+
+            // --- HELPER: Formatear Medidas (Recuperar fracción de fecha ISO) ---
+            const formatMeasurement = (val) => {
+                if (!val) return '';
+                // Si es fecha ISO (ej: 2026-04-03T...), extraer Día/Mes para mostrar como fracción (ej: 3/4)
+                if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) {
+                    const [year, month, day] = val.split('T')[0].split('-');
+                    return `${parseInt(day)}/${parseInt(month)}`;
+                }
+                return val;
+            };
+
+            const searchInputRef = useRef(null);
+            const actionInputRef = useRef(null);
+
+            // Formulario
+            const [formData, setFormData] = useState({
+                brand: '', description: '', warehouse: 'OFICINA', 
+                status: 'Activo', observations: '', quantity: 1, measurement: '', color: '',
+                category: ''
+            });
+
+            const [actionForm, setActionForm] = useState({
+                person: '', area: '', quantity: 1, notes: '', returnStatus: 'Activo', stockToAdd: 1
+            });
+
+            // --- CARGA INICIAL (CON IDs INTERNOS) ---
+            useEffect(() => {
+                if (APP_SCRIPT_URL) {
+                    fetchData();
+                } else {
+                    setInventory([
+                        { 
+                            id: 1, inventoryNum: 'GB-00001', brand: 'STANLEY', description: 'RELES DE MERCURIO', 
+                            manager: 'BODEGA', area: 'ALMACENAMIENTO', warehouse: 'OFICINA', status: 'Activo', 
+                            history: '01/02/2026: Ingreso Inicial |', quantity: 10, 
+                            category: 'REPUESTOS'
+                        },
+                        { 
+                            id: 2, inventoryNum: 'GB-00002', brand: 'BOSCH', description: 'TALADRO PERCUTOR', 
+                            manager: 'ELDER GARCIA', area: 'TALLER MANTENIMIENTO', warehouse: 'EN CAMPO', status: 'Activo', 
+                            history: '01/01/2026: Ingreso | 05/01/2026: Entregado a ELDER GARCIA |', quantity: 1,
+                            category: 'HERRAMIENTA ELÉCTRICA'
+                        }
+                    ]);
+                    setNextId(`${PREFIX}-00003`);
+                }
+            }, []);
+
+            useEffect(() => {
+                const handleEsc = (e) => { if (e.key === 'Escape') setActiveAsset(null); };
+                window.addEventListener('keydown', handleEsc);
+                return () => window.removeEventListener('keydown', handleEsc);
+            }, []);
+
+            useEffect(() => {
+                if (isScannerMode && searchInputRef.current && !activeAsset) searchInputRef.current.focus();
+                if (activeAsset && actionInputRef.current) actionInputRef.current.focus();
+            }, [isScannerMode, activeAsset]);
+
+            const fetchData = async () => {
+                setLoading(true);
+                try {
+                    const response = await fetch(APP_SCRIPT_URL + "?sheet=ACTIVOS");
+                    const data = await response.json();
+                    const dataWithIds = data.map((item, idx) => ({...item, id: item.id || Date.now() + idx}));
+                    setInventory(dataWithIds);
+                    
+                    const lastNum = data.length > 0 ? 
+                        parseInt(data[data.length - 1].inventoryNum.split('-')[1]) : -1;
+                    setNextId(`${PREFIX}-${String(lastNum + 1).padStart(PADDING, '0')}`);
+                } catch (error) { console.error(error); } finally { setLoading(false); }
+            };
+
+            const isStored = (manager) => manager === 'BODEGA' || BODEGAS_LIST.includes(manager);
+
+            // --- LÓGICA DE IMPRESIÓN ---
+            const connectPrinter = async () => {
+                try {
+                    const device = await navigator.bluetooth.requestDevice({
+                        filters: [{ services: ['000018f0-0000-1000-8000-00805f9b34fb', 0xFF00, '49535343-fe7d-4ae5-8fa9-9fafd205e455'] }],
+                        optionalServices: ['000018f0-0000-1000-8000-00805f9b34fb', 0xFF00, '49535343-fe7d-4ae5-8fa9-9fafd205e455']
+                    });
+                    const server = await device.gatt.connect();
+                    const service = await server.getPrimaryService('000018f0-0000-1000-8000-00805f9b34fb');
+                    const char = await service.getCharacteristic('00002af1-0000-1000-8000-00805f9b34fb');
+                    setPrinter(device); 
+                    setCharacteristic(char);
+                } catch (error) { console.error(error); }
+            };
+
+            const printLabel = async (item) => {
+                if (!characteristic) return; 
+                const zpl = `^XA^PW609^LL406^CI28^FO50,30^A0N,30,30^FD${item.brand.toUpperCase()}^FS^FO450,30^A0N,40,40^FDCANT: ${item.quantity}^FS^FO50,70^A0N,25,25^FB520,2,,L^FD${item.description}^FS^FO50,135^A0N,22,22^FDRESP: ${item.manager.toUpperCase()}^FS^FO50,165^A0N,22,22^FDAREA: ${item.area.toUpperCase()}^FS^FO50,195^A0N,22,22^FDBODEGA: ${item.warehouse.toUpperCase()}^FS^FO150,230^BY3^BCN,100,Y,N,N^FD${item.inventoryNum}^FS^XZ`;
+                const encoder = new TextEncoder();
+                const data = encoder.encode(zpl);
+                try {
+                    const CHUNK_SIZE = 20;
+                    for (let i = 0; i < data.length; i += CHUNK_SIZE) await characteristic.writeValue(data.slice(i, i + CHUNK_SIZE));
+                } catch (error) { console.error("Error imprimiendo:", error); }
+            };
+
+            const printLabelPC = (items) => {
+                const container = document.getElementById('printable-area');
+                if(!container) return;
+                container.innerHTML = ''; // Limpiar área de impresión
+
+                // Convertir a array si es un solo ítem
+                const list = Array.isArray(items) ? items : [items];
+
+                list.forEach((item, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'label-container';
+                    div.innerHTML = `
+                        <div class="lbl-brand">GIBOR - CONTROL DE ACTIVOS</div>
+                        <div class="lbl-desc">${item.description || ''}</div>
+                        <div class="lbl-meta-row">
+                            <span>${item.brand || ''}</span>
+                            <span>${item.measurement ? '| ' + item.measurement : ''}</span>
+                        </div>
+                        <div class="lbl-barcode-box">
+                            <svg id="barcode-${index}"></svg>
+                        </div>
+                        <div class="lbl-category">${item.category || 'ACTIVO'}</div>
+                    `;
+                    container.appendChild(div);
+
+                    if (typeof JsBarcode !== 'undefined') {
+                        JsBarcode(`#barcode-${index}`, item.inventoryNum, {
+                            format: "CODE128", height: 50, width: 2, displayValue: true, fontSize: 14, fontOptions: "bold", margin: 0
+                        });
+                    }
+                });
+                
+                // Pequeña pausa para asegurar que el DOM se renderice antes de imprimir
+                setTimeout(() => window.print(), 300);
+            };
+
+            // --- LÓGICA DE NEGOCIO ---
+            const handleSearch = (e) => {
+                const term = e.target.value.toUpperCase();
+                setSearchTerm(term);
+                
+                if (isScannerMode) {
+                    const exactMatches = inventory.filter(i => i.inventoryNum === term);
+                    if (exactMatches.length > 0) {
+                        const bodegaMatch = exactMatches.find(i => isStored(i.manager));
+                        openAssetControl(bodegaMatch || exactMatches[0]);
+                        setSearchTerm('');
+                    }
+                }
+            };
+
+            const openAssetControl = (asset) => {
+                setActiveAsset(asset);
+                setIsEditing(false);
+                setActionForm({ person: '', area: '', quantity: asset.quantity, notes: '', returnStatus: 'Activo', stockToAdd: 1 });
+            };
+
+            const handleCreate = async (e) => {
+                e.preventDefault();
+                const now = new Date().toLocaleDateString();
+                const newRecord = { 
+                    ...formData, 
+                    id: Date.now(), 
+                    inventoryNum: nextId, 
+                    manager: 'BODEGA', 
+                    area: 'ALMACENAMIENTO',
+                    date: now,
+                    history: `${now}: ALTA EN ${formData.warehouse} | `
+                };
+
+                // Actualización Optimista (Local)
+                const updatedInventory = [...inventory, newRecord];
+                setInventory(updatedInventory);
+                setNextId(`${PREFIX}-${String(parseInt(nextId.split('-')[1]) + 1).padStart(PADDING, '0')}`);
+                setFormData({ ...formData, description: '', brand: '', measurement: '', color: '', quantity: 1 });
+
+                // Guardar en Nube
+                if (APP_SCRIPT_URL) {
+                    fetch(APP_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            tipo: "guardar_activos",
+                            activos: [newRecord]
+                        })
+                    }).catch(err => console.error("Error guardando en nube:", err));
+                }
+
+                if (characteristic) {
+                    await printLabel(newRecord);
+                } else if (confirm("¿Imprimir etiqueta en PC?")) {
+                    printLabelPC(newRecord);
+                }
+            };
+
+            const startEditing = () => {
+                setEditForm({ ...activeAsset });
+                setIsEditing(true);
+            };
+
+            const handleUpdateAsset = async () => {
+                if (!editForm.description) return alert("Descripción requerida");
+
+                const updatedAsset = { ...activeAsset, ...editForm };
+                
+                // Actualizar localmente
+                const newInventory = inventory.map(item => item.id === updatedAsset.id ? updatedAsset : item);
+                setInventory(newInventory);
+                setActiveAsset(updatedAsset);
+                setIsEditing(false);
+
+                // Guardar en Nube
+                if (APP_SCRIPT_URL) {
+                    fetch(APP_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            tipo: "guardar_activos",
+                            activos: [updatedAsset]
+                        })
+                    }).catch(err => console.error("Error guardando edición:", err));
+                }
+                alert("✅ Activo actualizado correctamente.");
+            };
+
+            const handleAddStock = async () => {
+                if (!activeAsset) return;
+                const qtyToAdd = parseInt(actionForm.stockToAdd);
+                
+                if (isNaN(qtyToAdd) || qtyToAdd <= 0) return alert("Cantidad inválida");
+                
+                const now = new Date().toLocaleDateString();
+                const newInventory = [...inventory];
+                const index = newInventory.findIndex(i => i.id === activeAsset.id);
+                
+                if (index === -1) return;
+                
+                const updatedAsset = { ...newInventory[index] };
+                updatedAsset.quantity += qtyToAdd;
+                updatedAsset.history += ` ${now}: INGRESO DE ${qtyToAdd} UNID. (REPOSICIÓN) |`;
+                
+                newInventory[index] = updatedAsset;
+                setInventory(newInventory);
+                setActiveAsset(null);
+                
+                if (APP_SCRIPT_URL) {
+                    fetch(APP_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            tipo: "guardar_activos",
+                            activos: [updatedAsset]
+                        })
+                    }).catch(err => console.error(err));
+                }
+                alert("Stock actualizado correctamente.");
+            };
+
+            // --- LÓGICA DE SELECCIÓN MÚLTIPLE ---
+            const toggleSelection = (id) => {
+                const newSet = new Set(selectedIds);
+                if (newSet.has(id)) newSet.delete(id);
+                else newSet.add(id);
+                setSelectedIds(newSet);
+            };
+
+            const handleSelectAll = () => {
+                if (selectedIds.size === filteredList.length) {
+                    setSelectedIds(new Set());
+                } else {
+                    const newSet = new Set(filteredList.map(i => i.id));
+                    setSelectedIds(newSet);
+                }
+            };
+
+            const openBulkModal = () => {
+                // Inicializar cantidades a 1 por defecto para cada ítem seleccionado
+                const initialQuantities = {};
+                selectedIds.forEach(id => {
+                    const item = inventory.find(i => i.id === id);
+                    if (item) initialQuantities[id] = 1; // Por defecto despachar 1 unidad
+                });
+                setBulkQuantities(initialQuantities);
+                setBulkForm({ person: '', area: '', notes: '' });
+                setIsBulkModalOpen(true);
+            };
+
+            const handleBulkSubmit = async () => {
+                if (!bulkForm.person) return alert("Debes indicar el responsable.");
+                
+                const now = new Date().toLocaleDateString();
+                const targetManager = bulkForm.person.toUpperCase();
+                const targetArea = DEFAULT_ASSIGNMENTS[targetManager] || bulkForm.area.toUpperCase();
+                const targetWarehouse = 'EN CAMPO';
+                
+                let newInventory = [...inventory];
+                let itemsToSync = [];
+
+                // Procesar cada ítem seleccionado
+                for (const id of selectedIds) {
+                    const originalIndex = newInventory.findIndex(i => i.id === id);
+                    if (originalIndex === -1) continue;
+
+                    const asset = newInventory[originalIndex];
+                    const qtyToMove = parseInt(bulkQuantities[id] || 1);
+                    
+                    if (qtyToMove <= 0 || qtyToMove > asset.quantity) continue; // Saltar inválidos
+
+                    const moveLog = `${now}: DESPACHO MASIVO ${qtyToMove} UNID. A ${targetManager} |`;
+
+                    // Lógica de movimiento (similar a handleMovement pero simplificada para asignación)
+                    if (qtyToMove < asset.quantity) {
+                        // División (Split)
+                        newInventory[originalIndex] = { ...asset, quantity: asset.quantity - qtyToMove };
+                        itemsToSync.push(newInventory[originalIndex]);
+
+                        const newAsset = {
+                            ...asset,
+                            id: Date.now() + Math.random(), // ID temporal único
+                            quantity: qtyToMove,
+                            manager: targetManager,
+                            area: targetArea,
+                            warehouse: targetWarehouse,
+                            dateEntrega: now,
+                            history: `${asset.history} ${moveLog}`,
+                            observations: bulkForm.notes ? `${asset.observations} [${bulkForm.notes}]` : asset.observations
+                        };
+                        newInventory.push(newAsset);
+                        itemsToSync.push(newAsset);
+                    } else {
+                        // Movimiento Total
+                        newInventory[originalIndex] = {
+                            ...asset,
+                            manager: targetManager,
+                            area: targetArea,
+                            warehouse: targetWarehouse,
+                            dateEntrega: now,
+                            history: asset.history + " " + moveLog,
+                            observations: bulkForm.notes ? `${asset.observations} [${bulkForm.notes}]` : asset.observations
+                        };
+                        itemsToSync.push(newInventory[originalIndex]);
+                    }
+                }
+
+                setInventory(newInventory);
+                setSelectedIds(new Set());
+                setIsBulkModalOpen(false);
+
+                if (APP_SCRIPT_URL && itemsToSync.length > 0) {
+                    fetch(APP_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({ tipo: "guardar_activos", activos: itemsToSync })
+                    }).catch(err => console.error(err));
+                }
+                alert("✅ Despacho masivo completado.");
+            };
+
+            const handleBulkPrint = () => {
+                const itemsToPrint = [];
+                selectedIds.forEach(id => {
+                    const item = inventory.find(i => i.id === id);
+                    if (item) itemsToPrint.push(item);
+                });
+                printLabelPC(itemsToPrint);
+            };
+
+            const handleMovement = async (type) => {
+              try {
+                if (!activeAsset) return;
+                
+                const qtyToMove = parseInt(actionForm.quantity);
+                if (isNaN(qtyToMove) || qtyToMove <= 0) return alert("Cantidad inválida");
+                if (qtyToMove > activeAsset.quantity) return alert("No puedes mover más de lo que existe.");
+
+                const now = new Date().toLocaleDateString();
+                let newInventory = [...inventory];
+                let moveLog = "";
+                let targetManager, targetArea, targetWarehouse, targetStatus, targetDateMalEstado;
+                let labelToPrint = null; 
+                let itemsToSync = []; // Items para guardar en nube
+                
+                if (type === 'ASSIGN') {
+                    targetManager = (actionForm.person || '').toUpperCase();
+                    targetArea = DEFAULT_ASSIGNMENTS[targetManager] || (actionForm.area || '').toUpperCase();
+                    targetWarehouse = 'EN CAMPO';
+                    targetStatus = activeAsset.status;
+                    targetDateMalEstado = activeAsset.dateMalEstado;
+                    moveLog = `${now}: ENTREGADO ${qtyToMove} UNID. A ${targetManager} |`;
+                } else { 
+                    targetManager = 'BODEGA';
+                    targetArea = 'ALMACENAMIENTO';
+                    targetWarehouse = actionForm.area || 'OFICINA';
+                    targetStatus = actionForm.returnStatus;
+                    targetDateMalEstado = targetStatus === 'Mal Estado' ? now : '';
+                    moveLog = `${now}: DEVUELTO ${qtyToMove} UNID. A ${targetWarehouse} (${targetStatus}) |`;
+                }
+
+                if (qtyToMove < activeAsset.quantity) {
+                    const originalIndex = newInventory.findIndex(i => i.id === activeAsset.id);
+                    
+                    if (originalIndex === -1) {
+                        throw new Error("No se encontró el activo original en el inventario local.");
+                    }
+
+                    newInventory[originalIndex] = {
+                        ...activeAsset,
+                        quantity: activeAsset.quantity - qtyToMove
+                    };
+                    itemsToSync.push(newInventory[originalIndex]);
+
+                    const existingDestIndex = newInventory.findIndex(i => 
+                        i.inventoryNum === activeAsset.inventoryNum && 
+                        i.manager === targetManager &&
+                        i.warehouse === targetWarehouse &&
+                        i.status === targetStatus 
+                    );
+
+                    if (existingDestIndex >= 0) {
+                        newInventory[existingDestIndex].quantity += qtyToMove;
+                        newInventory[existingDestIndex].history += ` ${moveLog}`;
+                        newInventory[existingDestIndex].observations = actionForm.notes ? `${newInventory[existingDestIndex].observations} [${actionForm.notes}]` : newInventory[existingDestIndex].observations;
+                        if(targetStatus === 'Mal Estado') newInventory[existingDestIndex].dateMalEstado = now;
+                        labelToPrint = newInventory[existingDestIndex];
+                        itemsToSync.push(newInventory[existingDestIndex]);
+                    } else {
+                        const newAsset = {
+                            ...activeAsset,
+                            id: Date.now(),
+                            quantity: qtyToMove,
+                            manager: targetManager,
+                            area: targetArea,
+                            warehouse: targetWarehouse,
+                            status: targetStatus,
+                            dateEntrega: type === 'ASSIGN' ? now : '',
+                            dateMalEstado: targetDateMalEstado,
+                            history: `${activeAsset.history} ${moveLog}`,
+                            observations: actionForm.notes ? `${activeAsset.observations} [${actionForm.notes}]` : activeAsset.observations
+                        };
+                        newInventory.push(newAsset);
+                        labelToPrint = newAsset;
+                        itemsToSync.push(newAsset);
+                    }
+
+                } else {
+                    const existingDestIndex = newInventory.findIndex(i => 
+                        i.inventoryNum === activeAsset.inventoryNum && 
+                        i.manager === targetManager &&
+                        i.warehouse === targetWarehouse &&
+                        i.status === targetStatus &&
+                        i.id !== activeAsset.id 
+                    );
+
+                    if (existingDestIndex >= 0) {
+                        newInventory[existingDestIndex].quantity += qtyToMove;
+                        newInventory[existingDestIndex].history += ` ${moveLog}`;
+                        if(targetStatus === 'Mal Estado') newInventory[existingDestIndex].dateMalEstado = now;
+                        
+                        // CORRECCIÓN: Enviar el activo origen con cantidad 0 a la nube para que se actualice
+                        const sourceToSync = { ...activeAsset, quantity: 0, history: activeAsset.history + " " + moveLog };
+                        itemsToSync.push(sourceToSync);
+                        
+                        labelToPrint = newInventory[existingDestIndex];
+                        itemsToSync.push(newInventory[existingDestIndex]);
+                        
+                        // Eliminar localmente
+                        newInventory = newInventory.filter(i => i.id !== activeAsset.id);
+                    } else {
+                        const index = newInventory.findIndex(i => i.id === activeAsset.id);
+                        if (index === -1) {
+                             throw new Error("No se encontró el activo para mover (ID mismatch).");
+                        }
+
+                        newInventory[index] = {
+                            ...activeAsset,
+                            manager: targetManager,
+                            area: targetArea,
+                            warehouse: targetWarehouse,
+                            status: targetStatus,
+                            dateEntrega: type === 'ASSIGN' ? now : '',
+                            dateMalEstado: targetDateMalEstado,
+                            history: activeAsset.history + " " + moveLog,
+                            observations: actionForm.notes ? `${activeAsset.observations} [${actionForm.notes}]` : activeAsset.observations
+                        };
+                        labelToPrint = newInventory[index];
+                        itemsToSync.push(newInventory[index]);
+                    }
+                }
+
+                setInventory(newInventory);
+                setActiveAsset(null);
+
+                // Sync Cloud
+                if (APP_SCRIPT_URL && itemsToSync.length > 0) {
+                    fetch(APP_SCRIPT_URL, {
+                        method: "POST",
+                        body: JSON.stringify({
+                            tipo: "guardar_activos",
+                            activos: itemsToSync
+                        })
+                    }).catch(err => console.error("Error sincronizando movimiento:", err));
+                }
+
+                // Solo preguntar/imprimir en devoluciones, no en entregas.
+                if (type === 'RETURN') {
+                    if (characteristic && labelToPrint) {
+                        await printLabel(labelToPrint);
+                    } else if (labelToPrint && confirm("¿Imprimir etiqueta actualizada en PC?")) {
+                        printLabelPC(labelToPrint);
+                    }
+                }
+              } catch (e) {
+                  console.error(e);
+                  alert("Error al procesar movimiento: " + e.message);
+              }
+            };
+
+            const stats = useMemo(() => {
+                return {
+                    total: inventory.length,
+                    bodega: inventory.filter(i => isStored(i.manager)).length,
+                    asignado: inventory.filter(i => !isStored(i.manager)).length,
+                    bajoStock: inventory.filter(i => isStored(i.manager) && i.quantity <= LOW_STOCK_THRESHOLD).length,
+                };
+            }, [inventory]);
+
+            const filteredList = useMemo(() => {
+                return inventory.filter(item => {
+                    if (item.quantity <= 0) return false; // Ocultar ítems con cantidad 0
+                    const matchSearch = JSON.stringify(item).toUpperCase().includes(searchTerm);
+                    if (viewMode === 'BODEGA') return matchSearch && isStored(item.manager);
+                    if (viewMode === 'ASIGNADO') return matchSearch && !isStored(item.manager);
+                    if (viewMode === 'BAJO_STOCK') return matchSearch && isStored(item.manager) && item.quantity <= LOW_STOCK_THRESHOLD;
+                    return matchSearch;
+                }).reverse();
+            }, [inventory, searchTerm, viewMode]);
+
+            const exportToCSV = () => {
+                const headers = ["Codigo", "Descripcion", "Marca", "Medida", "Color", "Categoria", "Estado", "Ubicacion", "Responsable", "Area", "Cantidad", "Historial"];
+                const rows = filteredList.map(i => [
+                    i.inventoryNum, i.description, i.brand, i.measurement || '', i.color || '', i.category, i.status, 
+                    isStored(i.manager) ? i.warehouse : 'EN CAMPO',
+                    i.manager, i.area, i.quantity, i.history
+                ]);
+                const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(e => e.join(",")).join("\n");
+                const link = document.createElement("a");
+                link.setAttribute("href", encodeURI(csvContent));
+                link.setAttribute("download", `Inventario_GB_${new Date().toLocaleDateString()}.csv`);
+                link.click();
+            };
+
+            return (
+                <div className="min-h-screen bg-gray-50 text-slate-800 font-sans pb-20 selection:bg-blue-500 selection:text-white">
+                    <nav className="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 shadow-sm">
+                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+                            <div className="flex items-center gap-6 w-full md:w-auto">
+                                <img src="logo-giborv2 (2).png" alt="GIBOR S.A. Logo" className="h-16 w-auto object-contain"></img>
+                                
+                                <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
+                                    <button onClick={() => setViewMode('BODEGA')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'BODEGA' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
+                                        <Warehouse size={14} /> Bodega <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.bodega}</span>
+                                    </button>
+                                    <button onClick={() => setViewMode('ASIGNADO')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'ASIGNADO' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
+                                        <UserCheck size={14} /> Asignados <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.asignado}</span>
+                                    </button>
+                                    <button onClick={() => setViewMode('BAJO_STOCK')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'BAJO_STOCK' ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
+                                        <AlertTriangle size={14} /> Alertas <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.bajoStock}</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="flex gap-3 w-full md:w-auto justify-end">
+                                <a href="index.html" class="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-slate-600 rounded-lg text-xs font-bold uppercase transition-all border border-gray-200 shadow-sm">
+                                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Inicio</span>
+                                </a>
+                                <button onClick={connectPrinter} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all border ${printer ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50'}`}>
+                                    <Bluetooth size={16} /> {printer ? 'CONECTADO' : 'SYNC'}
+                                </button>
+                            </div>
+                        </div>
+                    </nav>
+
+                    <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+                        {/* ... (Rest of the UI code remains the same as provided, just wrapped in this structure) ... */}
+                        <section className="lg:col-span-3 space-y-6">
+                            <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-lg">
+                                <h2 className="text-sm font-black text-slate-500 uppercase mb-4 flex items-center gap-2">
+                                    <Plus size={16} className="text-blue-600" /> Alta de Activo
+                                </h2>
+                                <form onSubmit={handleCreate} className="space-y-3">
+                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-center flex justify-between items-center px-4">
+                                        <span className="text-[10px] font-bold text-slate-500">ID</span>
+                                        <span className="font-mono font-black text-xl text-blue-600">{nextId}</span>
+                                    </div>
+                                    <input list="categories-list" type="text" placeholder="CATEGORÍA" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                    <datalist id="categories-list">
+                                        {CATEGORIES_LIST.map(c => <option key={c} value={c} />)}
+                                    </datalist>
+                                    <input type="text" placeholder="DESCRIPCIÓN" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <input type="text" placeholder="MARCA" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                        <input type="text" placeholder="MEDIDA" value={formData.measurement} onChange={e => setFormData({...formData, measurement: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                        <input type="text" placeholder="COLOR" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <select value={formData.warehouse} onChange={e => setFormData({...formData, warehouse: e.target.value})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-2.5 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                            {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                                        </select>
+                                        <input type="number" min="1" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-2.5 font-bold text-center outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                    </div>
+                                    
+                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
+                                        {printer ? <Printer size={16}/> : null} Registrar e Imprimir
+                                    </button>
+                                </form>
+                            </div>
+                        </section>
+
+                        <section className="lg:col-span-9 space-y-4">
+                            {/* ... Search Bar ... */}
+                            <div className="bg-white p-2 rounded-2xl border border-gray-200 flex items-center gap-2 shadow-sm">
+                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${isScannerMode ? 'bg-blue-600 text-white' : 'bg-gray-100 text-slate-400'}`}>
+                                    <ScanLine size={20} className={isScannerMode ? 'animate-pulse' : ''} />
+                                </div>
+                                <input 
+                                    ref={searchInputRef}
+                                    type="text" 
+                                    placeholder={isScannerMode ? "MODO ACTIVO: ESCANEE CÓDIGO..." : "BUSCAR ACTIVO, MARCA, MEDIDA..."}
+                                    value={searchTerm}
+                                    onChange={handleSearch}
+                                    className="flex-1 bg-transparent border-none outline-none text-slate-700 font-bold placeholder:text-slate-400 uppercase"
+                                />
+                                <button onClick={exportToCSV} className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-lg text-xs font-black text-slate-600 hover:bg-gray-50 border border-gray-200 uppercase shadow-sm">
+                                    <Download size={14}/> Reporte
+                                </button>
+                                <button onClick={() => setIsScannerMode(!isScannerMode)} className="px-4 py-2 bg-white rounded-lg text-xs font-black text-slate-600 hover:bg-gray-50 border border-gray-200 uppercase shadow-sm">
+                                    {isScannerMode ? 'Stop Scan' : 'Escanear'}
+                                </button>
+                            </div>
+
+                            {/* ... Table ... */}
+                            <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-lg min-h-[500px]">
+                                <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                        <Layers size={14} /> Inventario General
+                                    </h3>
+                                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded border border-gray-200">
+                                        VISTA: {viewMode}
+                                    </span>
+                                </div>
+                                
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-left">
+                                        <thead className="text-[10px] font-black text-slate-500 uppercase bg-gray-50">
+                                            <tr>
+                                                <th className="px-2 py-3 w-8">
+                                                    <input type="checkbox" onChange={handleSelectAll} checked={filteredList.length > 0 && selectedIds.size === filteredList.length} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
+                                                </th>
+                                                <th className="px-2 py-3">Activo</th>
+                                                <th className="px-2 py-3">Marca</th>
+                                                <th className="px-2 py-3">Medida</th>
+                                                <th className="px-2 py-3">Color</th>
+                                                <th className="px-2 py-3">Categoría</th>
+                                                <th className="px-2 py-3">Ubicación</th>
+                                                <th className="px-2 py-3 text-center">Estado</th>
+                                                <th className="px-2 py-3 text-right">Acción</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-100">
+                                            {filteredList.map((item) => {
+                                                const inStore = isStored(item.manager);
+                                                return (
+                                                    <tr key={item.id} className="hover:bg-blue-50/50 transition-all group">
+                                                        <td className="px-2 py-3">
+                                                            <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelection(item.id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            <div className="flex items-center gap-3">
+                                                                <div className={`w-2 h-12 rounded-full ${inStore ? 'bg-blue-500' : 'bg-indigo-500'} shadow-sm`}></div>
+                                                                <div>
+                                                                    <span className="font-mono font-black text-blue-600 text-sm block tracking-wider">{item.inventoryNum}</span>
+                                                                    <span className="font-bold text-slate-700 text-xs block uppercase max-w-[150px] truncate" title={item.description}>{item.description}</span>
+                                                                    <span className="text-xs font-black text-slate-500 uppercase mt-1 block">{item.quantity} UNID</span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            <span className="text-xs font-bold text-slate-600 uppercase">{item.brand}</span>
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            <span className="text-xs font-bold text-slate-600 uppercase">{formatMeasurement(item.measurement)}</span>
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            <span className="text-xs font-bold text-slate-600 uppercase">{item.color}</span>
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase"><Briefcase size={10}/> {item.category}</div>
+                                                        </td>
+                                                        <td className="px-2 py-3">
+                                                            {inStore ? (
+                                                                <div className="flex items-center gap-2">
+                                                                    <Warehouse size={16} className="text-slate-400" />
+                                                                    <div>
+                                                                        <div className="font-black text-slate-600 text-[11px] uppercase">EN BODEGA</div>
+                                                                        <div className="text-[9px] text-slate-500 font-bold uppercase">{item.warehouse}</div>
+                                                                    </div>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center gap-2">
+                                                                    <User size={16} className="text-indigo-500" />
+                                                                    <div>
+                                                                        <div className="font-black text-indigo-600 text-[11px] uppercase max-w-[100px] truncate" title={item.manager}>{item.manager}</div>
+                                                                        <div className="text-[9px] text-slate-500 font-bold uppercase">{item.area}</div>
+                                                                    </div>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-2 py-3 text-center">
+                                                            <span className={`px-2 py-1 rounded text-[9px] font-black uppercase ${item.status === 'Activo' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
+                                                                {item.status}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-2 py-3 text-right whitespace-nowrap">
+                                                            <button onClick={() => printLabelPC(item)} className="bg-white hover:bg-gray-50 text-slate-500 p-2 rounded-lg transition-all border border-gray-200 hover:border-blue-300 shadow-sm mr-2" title="Reimprimir Etiqueta">
+                                                                <Printer size={16} />
+                                                            </button>
+                                                            <button onClick={() => openAssetControl(item)} className="bg-white hover:bg-blue-50 text-slate-600 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border border-gray-200 hover:border-blue-300 shadow-sm">
+                                                                Gestionar
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* --- MODAL --- */}
+                        {activeAsset && (
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in duration-200">
+                                    
+                                    <div className="bg-gray-50 p-6 flex justify-between items-start border-b border-gray-200">
+                                        <div className="flex gap-4">
+                                            <div className={`p-4 rounded-2xl ${isStored(activeAsset.manager) ? 'bg-blue-600' : 'bg-indigo-600'}`}>
+                                                {isStored(activeAsset.manager) ? <Warehouse size={32} className="text-white"/> : <UserCheck size={32} className="text-white"/>}
+                                            </div>
+                                            <div>
+                                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{activeAsset.inventoryNum}</h2>
+                                                <p className="text-slate-500 font-bold uppercase text-sm">{activeAsset.description}</p>
+                                                <div className="flex gap-2 mt-2">
+                                                    <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">{activeAsset.brand}</span>
+                                                    {activeAsset.measurement && <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">{activeAsset.measurement}</span>}
+                                                    <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">STOCK: {activeAsset.quantity}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="flex gap-2">
+                                            {!isEditing && (
+                                                <button onClick={startEditing} className="p-2 hover:bg-blue-100 text-blue-600 rounded-full transition-colors" title="Editar Detalles"><Edit size={20}/></button>
+                                            )}
+                                            <button onClick={() => setActiveAsset(null)} className="p-2 hover:bg-gray-200 rounded-full text-slate-400 transition-colors"><X/></button>
+                                        </div>
+                                    </div>
+
+                                    {isEditing ? (
+                                        <div className="p-6 space-y-4 bg-white">
+                                            <h3 className="font-black text-slate-600 uppercase text-sm border-b pb-2">Editar Información del Activo</h3>
+                                            <div className="grid grid-cols-1 gap-4">
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Descripción</label>
+                                                    <input type="text" value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Marca</label>
+                                                        <input type="text" value={editForm.brand} onChange={e => setEditForm({...editForm, brand: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Medida</label>
+                                                        <input type="text" value={editForm.measurement} onChange={e => setEditForm({...editForm, measurement: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Color</label>
+                                                        <input type="text" value={editForm.color} onChange={e => setEditForm({...editForm, color: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
+                                                    </div>
+                                                </div>
+                                                <div>
+                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Categoría</label>
+                                                    <input list="categories-list-edit" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
+                                                    <datalist id="categories-list-edit">
+                                                        {CATEGORIES_LIST.map(c => <option key={c} value={c} />)}
+                                                    </datalist>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-end gap-3 pt-4">
+                                                <button onClick={() => setIsEditing(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-slate-600 font-bold text-xs uppercase hover:bg-gray-50">Cancelar</button>
+                                                <button onClick={handleUpdateAsset} className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold text-xs uppercase hover:bg-blue-700 shadow-lg shadow-blue-200">Guardar Cambios</button>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+                                        
+                                        <div className="space-y-4 border-r border-gray-100 pr-4">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ubicación Actual</label>
+                                                <p className="text-lg font-bold text-slate-800 uppercase flex items-center gap-2">
+                                                    {isStored(activeAsset.manager) ? <Warehouse size={16} className="text-blue-600"/> : <User size={16} className="text-indigo-600"/>}
+                                                    {activeAsset.manager}
+                                                </p>
+                                                <p className="text-xs text-slate-500 uppercase font-bold pl-6">{isStored(activeAsset.manager) ? activeAsset.warehouse : activeAsset.area}</p>
+                                            </div>
+
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Historial Reciente</label>
+                                                <div className="mt-2 text-[10px] text-slate-500 font-mono bg-gray-50 p-3 rounded-xl border border-gray-200 h-32 overflow-y-auto">
+                                                    {activeAsset.history ? activeAsset.history.split('|').map((log, i) => (
+                                                        <div key={i} className="mb-1 border-b border-gray-200 pb-1">{log}</div>
+                                                    )) : 'Sin historial registrado.'}
+                                                </div>
+                                            </div>
+                                            
+                                            <div className="flex gap-2 mt-4">
+                                                <button onClick={() => printLabelPC(activeAsset)} className="flex-1 bg-white hover:bg-gray-50 text-slate-700 border border-gray-200 py-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 transition-all shadow-sm">
+                                                    <Printer size={16}/> PC
+                                                </button>
+                                                <button onClick={() => printLabel(activeAsset)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white border border-slate-800 py-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 transition-all shadow-sm">
+                                                    <Bluetooth size={16}/> BT
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-4">
+                                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                                                ¿QUÉ DESEA HACER? (MAX: {activeAsset.quantity})
+                                            </label>
+
+                                            {isStored(activeAsset.manager) ? (
+                                                <div className="space-y-3">
+                                                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                                        <h4 className="text-blue-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowUpRight size={16}/> Asignar a Personal</h4>
+                                                        
+                                                        <div className="flex gap-2 mb-2">
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                max={activeAsset.quantity}
+                                                                className="w-20 bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-blue-500"
+                                                                value={actionForm.quantity}
+                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
+                                                            />
+                                                            <input 
+                                                                ref={actionInputRef}
+                                                                list="staff-list" 
+                                                                placeholder="BUSCAR PERSONA (EJ: ELDER)"
+                                                                className="flex-1 bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-blue-500"
+                                                                value={actionForm.person}
+                                                                onChange={e => setActionForm({...actionForm, person: e.target.value})}
+                                                            />
+                                                        </div>
+
+                                                        <input 
+                                                            placeholder="ÁREA (AUTOMÁTICA O MANUAL)"
+                                                            className="w-full bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-blue-500 mb-2"
+                                                            value={DEFAULT_ASSIGNMENTS[actionForm.person.toUpperCase()] || actionForm.area}
+                                                            onChange={e => setActionForm({...actionForm, area: e.target.value})}
+                                                        />
+                                                        <button 
+                                                            onClick={() => handleMovement('ASSIGN')}
+                                                            disabled={!actionForm.person}
+                                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200"
+                                                        >
+                                                            Confirmar Entrega
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-2">
+                                                        <h4 className="text-green-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><Plus size={16}/> Reponer Stock</h4>
+                                                        <div className="flex gap-2">
+                                                            <input 
+                                                                type="number" min="1"
+                                                                className="w-24 bg-white border border-green-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-green-500"
+                                                                value={actionForm.stockToAdd}
+                                                                onChange={e => setActionForm({...actionForm, stockToAdd: e.target.value})}
+                                                            />
+                                                            <button 
+                                                                onClick={handleAddStock}
+                                                                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all shadow-lg shadow-green-200"
+                                                            >
+                                                                Agregar
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div className="space-y-3">
+                                                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
+                                                        <h4 className="text-indigo-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowDownLeft size={16}/> Devolución a Bodega</h4>
+                                                        
+                                                        <div className="flex gap-2 mb-2">
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                max={activeAsset.quantity}
+                                                                className="w-20 bg-white border border-indigo-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-indigo-500"
+                                                                value={actionForm.quantity}
+                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
+                                                            />
+                                                            <select 
+                                                                className="flex-1 bg-white border border-indigo-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-indigo-500"
+                                                                onChange={e => setActionForm({...actionForm, area: e.target.value})} 
+                                                            >
+                                                                {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                                                            </select>
+                                                        </div>
+
+                                                        <div className="mb-2">
+                                                            <label className="text-[9px] font-bold text-indigo-600 uppercase block mb-1">Estado de Retorno:</label>
+                                                            <select 
+                                                                className={`w-full border rounded-xl p-2 text-xs font-bold uppercase outline-none ${actionForm.returnStatus === 'Mal Estado' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-indigo-200 text-slate-800'}`}
+                                                                value={actionForm.returnStatus}
+                                                                onChange={e => setActionForm({...actionForm, returnStatus: e.target.value})}
+                                                            >
+                                                                <option value="Activo">Buen Estado</option>
+                                                                <option value="Mal Estado">Dañado / Mal Estado</option>
+                                                            </select>
+                                                        </div>
+
+                                                        <button 
+                                                            onClick={() => handleMovement('RETURN')}
+                                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-200"
+                                                        >
+                                                            Confirmar Devolución
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones del Movimiento</label>
+                                                <textarea 
+                                                    placeholder="EJ: SE ENTREGA CON CABLE NUEVO..." 
+                                                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-slate-700 text-xs font-bold uppercase outline-none focus:border-slate-400 h-20 mt-1"
+                                                    value={actionForm.notes}
+                                                    onChange={e => setActionForm({...actionForm, notes: e.target.value})}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* --- BARRA FLOTANTE DE ACCIÓN MASIVA --- */}
+                        {selectedIds.size > 0 && (
+                            <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 z-50 animate-in fade-in slide-in-from-bottom-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
+                                        {selectedIds.size}
+                                    </div>
+                                    <span className="font-bold text-sm">Ítems Seleccionados</span>
+                                </div>
+                                <div className="h-8 w-px bg-slate-700"></div>
+                                <button onClick={openBulkModal} className="bg-white text-slate-900 hover:bg-blue-50 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
+                                    <CheckSquare size={16} /> Despachar Cargos
+                                </button>
+                                <button onClick={handleBulkPrint} className="bg-slate-700 text-white hover:bg-slate-600 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
+                                    <Printer size={16} /> Imprimir Etiquetas
+                                </button>
+                                <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-white transition-colors">
+                                    <X size={20} />
+                                </button>
+                            </div>
+                        )}
+
+                        {/* --- MODAL DE DESPACHO MASIVO --- */}
+                        {isBulkModalOpen && (
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
+                                    <div className="bg-slate-900 p-6 flex justify-between items-center">
+                                        <h2 className="text-xl font-black text-white flex items-center gap-3">
+                                            <CheckSquare className="text-blue-400"/> Despacho Masivo de Cargos
+                                        </h2>
+                                        <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-white"><X/></button>
+                                    </div>
+                                    
+                                    <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
+                                        {/* Panel Izquierdo: Formulario */}
+                                        <div className="p-6 md:w-1/3 bg-gray-50 border-r border-gray-200 space-y-4 overflow-y-auto">
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Responsable (Quién recibe)</label>
+                                                <input list="staff-list" className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500" 
+                                                    value={bulkForm.person} onChange={e => setBulkForm({...bulkForm, person: e.target.value})} placeholder="BUSCAR PERSONA..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Área de Destino</label>
+                                                <input className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500" 
+                                                    value={DEFAULT_ASSIGNMENTS[bulkForm.person.toUpperCase()] || bulkForm.area} 
+                                                    onChange={e => setBulkForm({...bulkForm, area: e.target.value})} placeholder="ÁREA..." />
+                                            </div>
+                                            <div>
+                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones Generales</label>
+                                                <textarea className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500 h-24" 
+                                                    value={bulkForm.notes} onChange={e => setBulkForm({...bulkForm, notes: e.target.value})} placeholder="NOTAS PARA TODOS LOS ÍTEMS..." />
+                                            </div>
+                                            <button onClick={handleBulkSubmit} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg shadow-blue-200 transition-all">
+                                                Confirmar Despacho
+                                            </button>
+                                        </div>
+
+                                        {/* Panel Derecho: Lista de Ítems */}
+                                        <div className="p-6 md:w-2/3 overflow-y-auto bg-white">
+                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Ítems a Despachar ({selectedIds.size})</h3>
+                                            <div className="space-y-2">
+                                                {Array.from(selectedIds).map(id => {
+                                                    const item = inventory.find(i => i.id === id);
+                                                    if(!item) return null;
+                                                    return (
+                                                        <div key={id} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-blue-200 bg-gray-50/50 transition-all">
+                                                            <div className="flex-1">
+                                                                <div className="font-bold text-slate-700 text-sm">{item.description}</div>
+                                                                <div className="text-[10px] text-slate-500 font-mono">{item.inventoryNum} • {item.brand}</div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
+                                                                <span className="text-[9px] font-bold text-slate-400">CANT:</span>
+                                                                <input type="number" min="1" max={item.quantity} 
+                                                                    className="w-12 text-center font-bold text-sm outline-none text-blue-600"
+                                                                    value={bulkQuantities[id] || 1}
+                                                                    onChange={(e) => setBulkQuantities({...bulkQuantities, [id]: e.target.value})}
+                                                                />
+                                                                <span className="text-[9px] font-bold text-slate-400">/ {item.quantity}</span>
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    <datalist id="staff-list">
+                        {Object.keys(DEFAULT_ASSIGNMENTS).map(key => <option key={key} value={key} />)}
+                    </datalist>
+                </div>
+            );
+        }
+
+        try {
+            const root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(
+                <ErrorBoundary>
+                    <App />
+                </ErrorBoundary>
+            );
+        } catch (error) {
+            document.body.innerHTML = '<div style="padding:20px; color:red;"><h2>Error de Aplicación</h2><pre>' + error.message + '</pre></div>';
+            console.error(error);
+        }
+    </script>
+</body>
+</html>

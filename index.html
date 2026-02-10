@@ -143,6 +143,13 @@
                     <span>Mapa Ubicaciones</span>
                 </a>
 
+                <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Activos</div>
+
+                <a href="#" onclick="loadView('activos.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
+                    <i data-lucide="box-select" class="w-5 h-5"></i>
+                    <span>Control Activos</span>
+                </a>
+
                 <div class="pt-6 pb-2 text-xs font-bold text-slate-500 uppercase tracking-wider px-2">Herramientas</div>
 
                 <a href="#" onclick="loadView('prueba_impresion.html', this)" class="nav-item flex items-center gap-3 px-4 py-3 text-slate-400 rounded-lg hover:bg-slate-800 hover:text-white transition-colors">
@@ -615,7 +622,7 @@
             }
 
             // Módulos que requieren Bluetooth (cargar sin iframe)
-            const modulosConBluetooth = ['etiquetas_fardo.html', 'etiqueta_lote.html', 'etiquetas_aserrada.html', 'registro.html'];
+            const modulosConBluetooth = ['etiquetas_fardo.html', 'etiqueta_lote.html', 'etiquetas_aserrada.html', 'registro.html', 'activos.html'];
             
             if (modulosConBluetooth.includes(url)) {
                 homeView.classList.add('hidden');
@@ -1358,6 +1365,8 @@
                 sessionData = { name: "Michelle Giron", role: "admin" };
             } else if (user === "inventario" && pass === "inventario2026") {
                 sessionData = { name: "Jose Corado", role: "inventario" };
+            } else if (user === "recepcion" && pass === "recepcion26") {
+                sessionData = { name: "Yasmin Díaz", role: "recepcion" };
             } else {
                 errorMsg.classList.remove('hidden');
                 // Efecto de sacudida en caso de error
@@ -1387,6 +1396,10 @@
             const navItems = document.querySelectorAll('.nav-item');
             const sections = document.querySelectorAll('.pt-6'); // Títulos de sección en sidebar
             const exportBtn = document.getElementById('btn-export-dashboard');
+            
+            // Elementos del Dashboard
+            const dashboardStats = document.querySelector('#view-home .grid');
+            const dashboardHeader = document.querySelector('#view-home .flex.flex-col.sm\\:flex-row');
 
             if (rol === "admin") {
                 navItems.forEach(item => {
@@ -1396,11 +1409,58 @@
                 });
                 sections.forEach(sec => sec.style.display = 'none');
                 if (exportBtn) exportBtn.style.display = 'none';
+                
+                // Admin ve dashboard
+                if(dashboardStats) dashboardStats.style.display = 'grid';
+                if(dashboardHeader) dashboardHeader.style.display = 'flex';
+            } else if (rol === "recepcion") {
+                navItems.forEach(item => {
+                    const spanText = item.querySelector('span').innerText.trim();
+                    // Solo permite ver "Control Activos"
+                    item.style.display = (spanText === "Control Activos") ? 'flex' : 'none';
+                });
+                sections.forEach(sec => sec.style.display = 'none');
+                if (exportBtn) exportBtn.style.display = 'none';
+                
+                // Ocultar Dashboard para Recepción
+                if(dashboardStats) dashboardStats.style.display = 'none';
+                if(dashboardHeader) dashboardHeader.style.display = 'none';
+                
+                // Mostrar pantalla de bienvenida personalizada
+                let msg = document.getElementById('recepcion-welcome');
+                if(!msg) {
+                    msg = document.createElement('div');
+                    msg.id = 'recepcion-welcome';
+                    msg.className = 'flex flex-col items-center justify-center h-[80vh] text-center fade-in';
+                    msg.innerHTML = `
+                        <div class="bg-white p-8 rounded-3xl shadow-lg border border-gray-100 max-w-md">
+                            <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <i data-lucide="box-select" class="w-8 h-8"></i>
+                            </div>
+                            <h2 class="text-2xl font-bold text-slate-800 mb-2">Control de Activos</h2>
+                            <p class="text-slate-500 mb-6">Bienvenida. Accede al módulo de gestión para administrar los activos.</p>
+                            <button onclick="document.querySelector('a[onclick*=\\'activos.html\\']').click()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-600/20">
+                                Ir a Control de Activos
+                            </button>
+                        </div>
+                    `;
+                    document.getElementById('view-home').appendChild(msg);
+                    lucide.createIcons();
+                } else {
+                    msg.style.display = 'flex';
+                }
             } else {
                 // Usuario inventario ve todo
                 navItems.forEach(item => item.style.display = 'flex');
                 sections.forEach(sec => sec.style.display = 'block');
                 if (exportBtn) exportBtn.style.display = 'flex';
+                
+                // Restaurar Dashboard
+                if(dashboardStats) dashboardStats.style.display = 'grid';
+                if(dashboardHeader) dashboardHeader.style.display = 'flex';
+                
+                const msg = document.getElementById('recepcion-welcome');
+                if(msg) msg.style.display = 'none';
             }
         }
 
