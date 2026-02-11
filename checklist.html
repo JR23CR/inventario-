@@ -2,182 +2,198 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checklist - Producto Terminado</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Check List de Fardos</title>
     <style>
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 4px; }
+        :root {
+            --primary: #1A237E;
+            --bg: #F5F7F9;
+            --card-bg: #FFFFFF;
+            --text-dark: #2c3e50;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            color: var(--text-dark);
+        }
+        .container { max-width: 100%; }
+        h2 { text-align: center; font-size: 1.5rem; margin-bottom: 20px; color: var(--primary); }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 25px;
+            border-radius: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-top: 10px;
+            border: 1px solid #e0e0e0;
+            border-radius: 15px;
+            box-sizing: border-box;
+            font-size: 1.5rem; /* Letra grande para ver bien */
+            text-align: center;
+            background-color: #fafafa;
+            outline: none;
+        }
+        input:focus { background-color: #fff; border-color: var(--primary); }
+
+        button {
+            width: 100%;
+            padding: 16px;
+            margin-top: 15px;
+            border: none;
+            border-radius: 15px;
+            font-weight: bold;
+            font-size: 1rem;
+            cursor: pointer;
+            background-color: var(--primary);
+            color: white;
+        }
+        
+        .btn-back { background-color: #e0e6ed; color: var(--text-dark); margin-top: 20px; text-decoration: none; display: inline-block; }
+
+        #status { font-size: 0.9rem; color: #666; margin-bottom: 10px; font-weight: bold; }
+        
+        .result-card { text-align: left; margin-top: 15px; transition: all 0.3s ease; border-radius: 20px; }
+        .result-row { display: flex; justify-content: space-between; border-bottom: 1px solid #eee; padding: 10px 0; }
+        .result-label { font-weight: bold; color: #555; }
+        .result-val { font-weight: bold; color: #000; }
     </style>
 </head>
-<body class="bg-slate-50 min-h-screen p-4 md:p-8">
-    <div class="max-w-4xl mx-auto">
-        <a href="index.html" class="inline-flex items-center gap-2 text-slate-500 hover:text-blue-600 transition-colors mb-6 font-medium">
-            <i data-lucide="arrow-left" class="w-4 h-4"></i> Volver al Dashboard
-        </a>
+<body>
 
-        <div class="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-            <div>
-                <h1 class="text-2xl font-bold text-slate-800">Checklist de Salida (PTE)</h1>
-                <p class="text-slate-500 text-sm">Selecciona los fardos para mover a SALIDA PTE.</p>
-            </div>
-            <div class="flex gap-2">
-                <button onclick="rebajarSeleccionados()" class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-red-600/20 transition-all flex items-center gap-2 active:scale-95">
-                    <i data-lucide="package-minus" class="w-5 h-5"></i> Rebajar Seleccionados
-                </button>
-            </div>
-        </div>
-
-        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-            <div class="p-4 border-b border-slate-100 bg-slate-50/50 flex gap-4">
-                <div class="relative flex-1">
-                    <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
-                    <input type="text" id="search" placeholder="Buscar por Lote o Fardo..." class="w-full pl-10 pr-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 outline-none transition-all text-sm" oninput="filterTable()">
-                </div>
-                <button onclick="cargarDatos()" class="p-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors">
-                    <i data-lucide="refresh-cw" class="w-5 h-5" id="refresh-icon"></i>
-                </button>
-            </div>
-
-            <div class="overflow-x-auto custom-scrollbar">
-                <table class="w-full text-sm text-left">
-                    <thead class="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10px] border-b border-slate-100">
-                        <tr>
-                            <th class="px-6 py-4 w-10">
-                                <input type="checkbox" id="select-all" onclick="toggleAll(this)" class="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4">
-                            </th>
-                            <th class="px-6 py-4">Lote / Fardo</th>
-                            <th class="px-6 py-4">Producto / Especie</th>
-                            <th class="px-6 py-4 text-right">Medida</th>
-                        </tr>
-                    </thead>
-                    <tbody id="table-body" class="divide-y divide-slate-100">
-                        <tr>
-                            <td colspan="4" class="px-6 py-12 text-center text-slate-400 italic">Cargando inventario remoto...</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </div>
+<div class="container">
+    <h2>✔️ Check List de Fardos</h2>
+    
+    <div class="card">
+        <div id="status">Esperando conexión...</div>
+        
+        <label>Escanear o Escribir # Fardo</label>
+        <input type="number" id="searchFardo" placeholder="Ej: 4237">
+        <button onclick="buscarFardo()">🔍 BUSCAR</button>
     </div>
 
-    <script>
-        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
-        let inventario = [];
+    <div id="resultado"></div>
 
-        async function cargarDatos() {
-            const icon = document.getElementById('refresh-icon');
-            icon.classList.add('animate-spin');
-            
+    <!-- <a href="index.html"><button class="btn-back">⬅ Volver al Menú</button></a> -->
+</div>
+
+<script>
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+    let inventario = [];
+
+    window.onload = function() {
+        cargarDatos();
+        
+        // Buscar al presionar Enter (útil para lectores de código de barras)
+        document.getElementById('searchFardo').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') buscarFardo();
+        });
+    };
+
+    function cargarDatos() {
+        const status = document.getElementById('status');
+        status.innerText = "🔄 Conectando con Base de Datos...";
+        status.style.color = "#e67e22";
+        
+        fetch(GOOGLE_SCRIPT_URL)
+        .then(response => {
+            if (!response.ok) throw new Error("Error de conexión con Google Sheets");
+            return response.text();
+        })
+        .then(text => {
             try {
-                const response = await fetch(GOOGLE_SCRIPT_URL + "?sheet=PRODUCTO TERMINADO");
-                inventario = await response.json();
-                renderTable(inventario);
+                return JSON.parse(text);
             } catch (e) {
-                console.error(e);
-                document.getElementById('table-body').innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-red-500">Error al conectar con la base de datos</td></tr>';
-            } finally {
-                icon.classList.remove('animate-spin');
+                throw new Error("El script no devolvió datos válidos. ¿Agregaste la función doGet y creaste una Nueva Versión?");
             }
-        }
-
-        function renderTable(data) {
-            const tbody = document.getElementById('table-body');
-            if (data.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="4" class="px-6 py-12 text-center text-slate-400">No hay fardos en Producto Terminado</td></tr>';
-                return;
+        })
+        .then(data => {
+            inventario = data;
+            status.innerText = `✅ Base de datos actualizada: ${data.length} fardos cargados.`;
+            status.style.color = "#27ae60";
+        })
+        .catch(error => {
+            console.error(error);
+            let friendlyMessage = "❌ " + error.message;
+            if (error.message.includes("Failed to fetch")) {
+                friendlyMessage += "\n\nRevisa tu conexión a internet o la configuración de la implementación del script de Google.";
             }
+            status.innerText = friendlyMessage;
+            status.style.color = "#c0392b";
+            status.style.whiteSpace = 'pre-wrap';
+            status.style.lineHeight = '1.4';
+        });
+    }
 
-            tbody.innerHTML = data.map((f, index) => `
-                <tr class="hover:bg-slate-50 transition-colors group">
-                    <td class="px-6 py-4">
-                        <input type="checkbox" class="fardo-checkbox rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-4 h-4" 
-                            data-lote="${f['# Lote'] || f['Lote'] || ''}" 
-                            data-fardo="${f['# Fardo'] || f['fardoNo'] || ''}">
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="font-bold text-slate-700">Lote: ${f['# Lote'] || f['Lote'] || '---'}</div>
-                        <div class="text-xs text-slate-400">Fardo: ${f['# Fardo'] || f['fardoNo'] || '---'}</div>
-                    </td>
-                    <td class="px-6 py-4">
-                        <div class="text-slate-600 font-medium">${f['Producto'] || f['producto'] || '---'}</div>
-                        <div class="text-xs text-slate-400">${f['Especie'] || f['especie'] || '---'}</div>
-                    </td>
-                    <td class="px-6 py-4 text-right font-mono font-bold text-blue-600">
-                        ${(parseFloat(f['M2'] || f['m2'] || f['ML'] || f['ml'] || 0)).toFixed(2)}
-                    </td>
-                </tr>
-            `).join('');
+    function formatearDato(valor) {
+        // Si es una fecha en formato ISO (viene de Google Sheets así)
+        if (typeof valor === 'string' && valor.includes('T') && valor.includes('Z')) {
+            const fecha = new Date(valor);
+            // Devolver en formato local (dd/mm/yyyy)
+            return fecha.toLocaleDateString('es-ES');
         }
+        return valor;
+    }
 
-        function filterTable() {
-            const term = document.getElementById('search').value.toLowerCase();
-            const filtered = inventario.filter(f => 
-                String(f['# Lote'] || '').toLowerCase().includes(term) || 
-                String(f['# Fardo'] || '').toLowerCase().includes(term) ||
-                String(f['Producto'] || '').toLowerCase().includes(term)
-            );
-            renderTable(filtered);
+    function formatearGrosor(valor) {
+        // Corrección específica para Grosores que Sheets convirtió en fecha (ej: 3/4 -> 03/04/2026)
+        if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
+            const fecha = new Date(valor);
+            // Extraer solo día y mes para reconstruir la fracción (ej: 3/4)
+            return `${fecha.getDate()}/${fecha.getMonth() + 1}`;
         }
+        return valor;
+    }
 
-        function toggleAll(source) {
-            const checkboxes = document.querySelectorAll('.fardo-checkbox');
-            checkboxes.forEach(cb => cb.checked = source.checked);
+    function buscarFardo() {
+        const num = document.getElementById('searchFardo').value;
+        if(!num) return;
+
+        const resultadoDiv = document.getElementById('resultado');
+        
+        // Buscar en el array descargado
+        // IMPORTANTE: Las claves (ej: '# Fardo') deben coincidir EXACTAMENTE con los encabezados de tu Excel
+        const fardo = inventario.find(f => String(f['# Fardo']) === String(num));
+
+        if (fardo) {
+            resultadoDiv.innerHTML = `
+                <div class="card result-card" style="border-left: 8px solid #2ecc71;">
+                    <h3 style="color:#2ecc71; margin-top:0; text-align:center;">✅ FARDO ENCONTRADO</h3>
+                    <div class="result-row"><span class="result-label">Fardo:</span> <span class="result-val" style="font-size:1.2rem;">${fardo['# Fardo']}</span></div>
+                    <div class="result-row"><span class="result-label">Lote:</span> <span class="result-val">${fardo['# Lote']}</span></div>
+                    <div class="result-row"><span class="result-label">Producto:</span> <span class="result-val">${fardo['Calidad']}</span></div>
+                    <div class="result-row"><span class="result-label">Especie:</span> <span class="result-val">${fardo['Especie']}</span></div>
+                    <div class="result-row"><span class="result-label">Medidas:</span> <span class="result-val">${formatearGrosor(fardo['Grosor "'])} x ${fardo['Ancho "']}</span></div>
+                    <div class="result-row"><span class="result-label">M2:</span> <span class="result-val">${fardo['M2']}</span></div>
+                    <div class="result-row"><span class="result-label">Fecha:</span> <span class="result-val">${formatearDato(fardo['Fecha de Ingreso'])}</span></div>
+                </div>
+            `;
+            // Sonido de éxito (opcional)
+            // new Audio('success.mp3').play().catch(e=>{}); 
+        } else {
+            resultadoDiv.innerHTML = `
+                <div class="card result-card" style="border-left: 8px solid #e74c3c;">
+                    <h3 style="color:#e74c3c; margin-top:0; text-align:center;">❌ NO ENCONTRADO</h3>
+                    <p>El fardo <b>#${num}</b> no aparece en el inventario descargado.</p>
+                    <p style="font-size:0.9rem; color:#666;">Si acabas de agregarlo, intenta actualizar la base de datos.</p>
+                    <button onclick="cargarDatos()" style="background:#95a5a6; margin-top:10px;">🔄 Actualizar Datos</button>
+                </div>
+            `;
         }
+        
+        // Limpiar input y mantener foco para el siguiente escaneo rápido
+        document.getElementById('searchFardo').value = '';
+        document.getElementById('searchFardo').focus();
+    }
+</script>
 
-        async function rebajarSeleccionados() {
-            const selected = document.querySelectorAll('.fardo-checkbox:checked');
-            if (selected.length === 0) return alert("⚠️ Selecciona al menos un fardo.");
-
-            const motivo = prompt(`¿Motivo de salida para ${selected.length} fardos?`, "Venta");
-            if (motivo === null) return;
-            if (motivo.trim() === "") return alert("❌ El motivo es obligatorio.");
-
-            if (!confirm(`¿Confirmas que deseas mover ${selected.length} fardos a SALIDA PTE?`)) return;
-
-            const items = Array.from(selected).map(cb => ({
-                lote: cb.dataset.lote,
-                fardo: cb.dataset.fardo
-            }));
-            
-            let exitos = 0;
-            let errores = 0;
-
-            // Procesamos uno por uno para asegurar que el script de Google los mueva correctamente
-            for (const item of items) {
-                const payload = {
-                    tipo: "baja_pte", // Asegúrate que tu Google Script maneje este 'tipo'
-                    lote: item.lote,
-                    fardo: item.fardo,
-                    sheetName: "PRODUCTO TERMINADO",
-                    targetSheet: "SALIDA PTE",
-                    motivo: motivo
-                };
-
-                try {
-                    const response = await fetch(GOOGLE_SCRIPT_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload)
-                    });
-                    const res = await response.json();
-                    if (res.result === "success") exitos++;
-                    else errores++;
-                } catch (e) {
-                    console.error("Error en fardo " + item.fardo, e);
-                    errores++;
-                }
-            }
-
-            alert(`✅ Proceso finalizado.\n\nÉxitos: ${exitos}\nErrores: ${errores}`);
-            cargarDatos(); // Recargar tabla
-        }
-
-        window.onload = () => {
-            lucide.createIcons();
-            cargarDatos();
-        };
-    </script>
 </body>
 </html>

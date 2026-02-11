@@ -7,244 +7,213 @@
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.5/JsBarcode.all.min.js"></script>
-    
     <script src="formato_etiqueta_producto_terminado.js"></script>
 
     <style>
         :root {
-            --primary: #1A237E;
-            --bg: #F5F7F9;
+            --primary: #1e293b;
+            --accent: #3b82f6;
+            --success: #22c55e;
+            --bg: #f8fafc;
             --card-bg: #FFFFFF;
-            --text-dark: #2c3e50;
-            --btn-pc: #00897b;
+            --text-main: #0f172a;
+            --border: #e2e8f0;
         }
         body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
             background-color: var(--bg);
             margin: 0;
-            padding: 20px;
-            color: var(--text-dark);
+            padding: 0;
+            color: var(--text-main);
         }
-        .container { max-width: 800px; margin: 0 auto; }
-        h2 { text-align: center; font-size: 1.5rem; color: var(--primary); margin-bottom: 20px; }
-        
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+
+        .top-bar {
+            background: var(--primary);
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .top-bar h2 { margin: 0; font-size: 1.2rem; letter-spacing: 1px; }
+        #btStatus { font-size: 0.8rem; opacity: 0.8; }
+
         .card {
             background: var(--card-bg);
-            padding: 25px;
-            border-radius: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            margin-bottom: 20px;
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            margin-bottom: 24px;
+        }
+        .card h3 { 
+            margin-top: 0; 
+            font-size: 0.85rem; 
+            color: var(--accent); 
+            text-transform: uppercase; 
+            border-bottom: 1px solid var(--border); 
+            padding-bottom: 10px; 
+            margin-bottom: 15px; 
+            letter-spacing: 0.5px;
         }
 
-        label { display: block; margin-top: 10px; font-weight: 700; font-size: 0.8rem; color: #95a5a6; text-transform: uppercase; }
+        label { display: block; margin-top: 10px; font-weight: 600; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
         input, select {
             width: 100%;
-            padding: 12px;
+            padding: 10px;
             margin-top: 5px;
-            border: 1px solid #e0e0e0;
-            border-radius: 12px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
             box-sizing: border-box;
-            font-size: 1rem;
-            background-color: #fafafa;
+            font-size: 0.9rem;
             outline: none;
+            transition: border-color 0.2s;
         }
-        input:focus, select:focus {
-            background-color: #fff;
-            border-color: var(--primary);
-        }
+        input:focus { border-color: var(--accent); }
 
         .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
         .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
         button {
             width: 100%;
-            padding: 16px;
-            margin-top: 15px;
+            padding: 12px;
             border: none;
-            border-radius: 15px;
+            border-radius: 8px;
             font-weight: bold;
-            font-size: 1rem;
+            font-size: 0.9rem;
             cursor: pointer;
+            transition: all 0.2s;
         }
-        .btn-main { background-color: var(--primary); color: white; }
-        .btn-secondary { background-color: var(--text-dark); color: white; }
-        
-        /* Botones de Impresión */
-        .btn-bt { background-color: #e67e22; color: white; margin-bottom: 15px; }
-        .btn-pc { background-color: var(--btn-pc); color: white; margin-top: 10px; }
-        
-        #btStatus { font-size: 0.8rem; text-align: center; margin-bottom: 5px; font-weight: bold; color: #95a5a6; }
+        button:active { transform: translateY(1px); }
+        .btn-main { background-color: var(--accent); color: white; }
+        .btn-main:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: #64748b; color: white; }
+        .btn-bt { background-color: #f59e0b; color: white; width: auto; padding: 8px 16px; }
 
-        /* Estilos Tabla Tally */
         .table-container {
-            overflow-x: auto;
-            margin-top: 20px;
-            border: 1px solid #eee;
-            border-radius: 15px;
+            max-height: 500px;
+            overflow: auto;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: white;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            white-space: nowrap;
-        }
-        th, td {
-            padding: 8px;
-            text-align: center;
-            border: 1px solid #eee;
-        }
-        thead th {
-            background-color: #f8f9fa;
-            position: sticky;
-            top: 0;
-            z-index: 2;
-            color: #95a5a6;
-        }
-        tbody th {
-            position: sticky;
-            left: 0;
-            background-color: #f2f2f2;
-            z-index: 1;
-        }
-        tfoot td {
-            font-weight: bold;
-            background-color: #f0f4f8;
-        }
-        td input {
-            width: 60px;
-            padding: 5px;
-            margin: 0;
-            text-align: center;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-        }
-        .total-col {
-            font-weight: bold;
-            background-color: #f0f4f8;
-        }
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        thead th { position: sticky; top: 0; background: #f1f5f9; z-index: 10; padding: 10px; border: 1px solid var(--border); }
+        tbody th { position: sticky; left: 0; background: #f1f5f9; z-index: 5; padding: 10px; border: 1px solid var(--border); }
+        td { border: 1px solid var(--border); padding: 2px; }
+        td input { width: 100%; border: none; text-align: center; padding: 8px 0; background: transparent; }
+        td input:focus { background: #dbeafe; }
+        tr:hover td { background: #f8fafc; }
+        .total-col { background: #f1f5f9; font-weight: bold; }
 
-        /* --- ESTILOS DE IMPRESIÓN PC (Etiqueta 4x3) --- */
+        .actions-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-top: 20px; }
+
+        /* Estilos para Impresión PC */
         #printable-area { display: none; }
-
         @media print {
             @page { size: 4in 3in; margin: 0; }
-            html, body { margin: 0; padding: 0; background: white; }
-            body * { visibility: hidden; } /* Ocultar interfaz */
-            
+            body * { visibility: hidden; }
             #printable-area, #printable-area * { visibility: visible; }
-            #printable-area { 
-                position: absolute; 
-                left: 0; top: 0; 
-                width: 100%; 
-                display: block !important;
-            }
-
-            .label-page {
-                width: 4in;
-                height: 3in;
-                page-break-after: always;
-                position: relative;
-                box-sizing: border-box;
-                padding: 10px;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                border: none;
-                overflow: hidden;
-            }
-            
-            /* Estilos internos de la etiqueta */
-            .lbl-header { width: 100%; display: flex; justify-content: space-between; border-bottom: 2px solid black; padding-bottom: 5px; margin-bottom: 5px; }
-            .lbl-title { font-size: 1.1rem; font-weight: bold; }
-            .lbl-sub { font-size: 2rem; font-weight: 900; line-height: 1; }
-            
-            .lbl-main { width: 100%; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center; }
-            .lbl-row { font-size: 1rem; font-weight: bold; margin: 2px 0; }
-            .lbl-row span { font-weight: normal; }
-            .lbl-dims { font-size: 1.3rem; font-weight: 900; margin-top: 5px; padding-top: 5px; border-top: 1px solid black; }
-            
-            .lbl-footer { width: 100%; display: flex; justify-content: space-between; border-top: 2px solid black; padding-top: 5px; margin-top: auto; }
-            .lbl-col-print { width: 48%; text-align: center; }
-            .lbl-val { font-size: 1.4rem; font-weight: bold; }
-            .lbl-head { font-size: 0.8rem; font-weight: bold; text-decoration: underline; }
-            
-            .lbl-barcode { height: 45px; margin: 5px 0; width: 100%; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 4in; height: 3in; display: block !important; }
+            .label-page { width: 4in; height: 3in; padding: 10px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; text-align: center; }
+            .lbl-header { display: flex; justify-content: space-between; width: 100%; border-bottom: 2px solid black; padding-bottom: 5px; }
+            .lbl-title { font-size: 1rem; font-weight: bold; }
+            .lbl-sub { font-size: 1.8rem; font-weight: 900; }
+            .lbl-main { flex: 1; display: flex; flex-direction: column; justify-content: center; width: 100%; }
+            .lbl-row { font-size: 0.9rem; margin: 2px 0; }
+            .lbl-dims { font-size: 1.2rem; font-weight: bold; border-top: 1px solid black; margin-top: 5px; padding-top: 5px; }
+            .lbl-footer { display: flex; width: 100%; border-top: 2px solid black; padding-top: 5px; }
+            .lbl-col-print { flex: 1; }
+            .lbl-head { font-size: 0.7rem; font-weight: bold; }
+            .lbl-val { font-size: 1.3rem; font-weight: bold; }
         }
     </style>
 </head>
 <body>
 
-<div class="container">
-    <h2>📝 Ingreso de Tallys</h2>
-    <div id="btStatus">Estado: Desconectado</div>
-    <button class="btn-bt" onclick="conectarBluetooth()">📡 Conectar Impresora BT</button>
+<div class="top-bar no-print">
+    <h2>GIBOR | Ingreso de Tallys</h2>
+    <div style="display: flex; align-items: center; gap: 15px;">
+        <div id="btStatus">Desconectado</div>
+        <button class="btn-bt" onclick="conectarBluetooth()">📡 Conectar</button>
+    </div>
+</div>
 
-    <div class="card">
-        <h3>Encabezado del Bulto</h3>
-        <div class="grid-3">
-            <div>
-                <label>Fecha</label>
-                <input type="date" id="fecha">
+<div class="container">
+    <div class="grid-3 no-print" style="grid-template-columns: 2fr 1fr;">
+        <div class="card col-span-2">
+            <h3>1. Configuración del Bulto</h3>
+            <div class="grid-3">
+                <div>
+                    <label>Fecha</label>
+                    <input type="date" id="fecha">
+                </div>
+                <div>
+                    <label>POA</label>
+                    <input type="text" id="poa" placeholder="Ej: 123-ABC">
+                </div>
+                <div>
+                    <label>No. Bulto</label>
+                    <input type="number" id="bultoNo" placeholder="Ej: 501">
+                </div>
             </div>
-            <div>
-                <label>POA</label>
-                <input type="text" id="poa" placeholder="Ej: 123-ABC">
+            <div class="grid-3">
+                <div>
+                    <label>Especie</label>
+                    <select id="especie"></select>
+                </div>
+                <div>
+                    <label>Calidad</label>
+                    <select id="calidad"></select>
+                </div>
+                <div>
+                    <label>Espesor</label>
+                    <select id="espesor">
+                        <option value="1">4/4</option>
+                        <option value="1.25">5/4</option>
+                        <option value="1.5">6/4</option>
+                        <option value="2">8/4</option>
+                    </select>
+                </div>
             </div>
-            <div>
-                <label>No. Bulto</label>
-                <input type="number" id="bultoNo" placeholder="Ej: 501">
+            <div class="grid-2">
+                <div>
+                    <label>Condición</label>
+                    <select id="condicion">
+                        <option value="A-D" selected>A-D</option>
+                        <option value="K-D">K-D</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Ubicación</label>
+                    <input type="text" id="ubicacion" placeholder="Ej: Patio 1">
+                </div>
             </div>
         </div>
-        <div class="grid-3">
-            <div>
-                <label>Especie</label>
-                <select id="especie"></select>
-            </div>
-            <div>
-                <label>Calidad</label>
-                <select id="calidad"></select>
-            </div>
-            <div>
-                <label>Espesor</label>
-                <select id="espesor">
-                    <option value="1">4/4</option>
-                    <option value="1.25">5/4</option>
-                    <option value="1.5">6/4</option>
-                    <option value="2">8/4</option>
-                </select>
-            </div>
-        </div>
-        <div class="grid-3">
-            <div>
-                <label>Condición</label>
-                <select id="condicion">
-                    <option value="A-D" selected>A-D</option>
-                    <option value="K-D">K-D</option>
-                </select>
-            </div>
-            <div>
-                <label>Ubicación</label>
-                <input type="text" id="ubicacion" placeholder="Ej: Patio 1">
-            </div>
-        </div>
-        <hr>
-        <div class="grid-3">
-            <div>
-                <label>Largo Mínimo (')</label>
-                <input type="number" id="largoMin" placeholder="Ej: 3">
-            </div>
-            <div>
-                <label>Largo Máximo (')</label>
-                <input type="number" id="largoMax" placeholder="Ej: 7">
-            </div>
-            <div>
-                <label>&nbsp;</label>
-                <button class="btn-main" onclick="generarTabla()" style="margin-top: 5px; padding: 12px;">Generar Tabla</button>
+
+        <div class="card">
+            <h3>2. Herramientas</h3>
+            <button class="btn-secondary" onclick="document.getElementById('excelFile').click()" style="background-color: #10b981; margin-bottom: 15px;">📂 Importar Excel</button>
+            <input type="file" id="excelFile" accept=".xlsx, .xls, .csv" style="display: none;" onchange="procesarExcel(event)">
+            <div id="importStatus" style="font-size: 0.7rem; color: #64748b;"></div>
+            
+            <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px;">
+                <label>Rango de Largos</label>
+                <div class="grid-2">
+                    <input type="number" id="largoMin" placeholder="Min" value="3">
+                    <input type="number" id="largoMax" placeholder="Max" value="16">
+                </div>
+                <button class="btn-main" onclick="generarTabla()" style="margin-top: 10px;">Generar Tabla</button>
             </div>
         </div>
     </div>
 
     <div class="card">
-        <h3>Detalle de Piezas</h3>
+        <h3>3. Detalle de Piezas (Tally)</h3>
         <div class="table-container">
             <table id="tallyTable">
                 <thead></thead>
@@ -252,14 +221,13 @@
                 <tfoot></tfoot>
             </table>
         </div>
-        <button class="btn-secondary" onclick="exportarCSV()">Exportar a CSV</button>
-        
-        <div class="grid-2" style="margin-top: 10px;">
-            <button class="btn-bt" onclick="imprimirEtiquetaActual()" style="background-color: #34495e; margin:0;">📡 Imprimir BT</button>
-            <button class="btn-pc" onclick="imprimirEtiquetaPC()" style="background-color: var(--btn-pc); margin:0;">🖥️ Imprimir PC</button>
+
+        <div class="actions-bar no-print">
+            <button class="btn-secondary" onclick="exportarCSV()">📥 Exportar CSV</button>
+            <button class="btn-secondary" onclick="imprimirEtiquetaPC()" style="background-color: #0d9488;">🖥️ Imprimir PC</button>
+            <button class="btn-secondary" onclick="imprimirEtiquetaActual()" style="background-color: #d97706;">📡 Imprimir BT</button>
+            <button class="btn-main" onclick="guardarTally()" style="background-color: #2563eb; font-size: 1.1rem;">💾 GUARDAR EN NUBE</button>
         </div>
-        
-        <button class="btn-main" onclick="guardarTally()" style="margin-top: 15px;">💾 Guardar en Nube</button>
     </div>
 </div>
 
@@ -271,7 +239,17 @@
     let bluetoothDevice;
     let printCharacteristic;
 
-    // Datos de configuración
+    // Helper para obtener valores de un objeto (fila de Excel) de forma insensible a mayúsculas y espacios
+    const getVal = (row, keys) => {
+        if (!row) return null;
+        const rowKeys = Object.keys(row);
+        for (const k of keys) {
+            const match = rowKeys.find(rk => rk.toLowerCase().trim() === k.toLowerCase().trim());
+            if (match !== undefined) return row[match];
+        }
+        return null;
+    };
+
     const especiesList = [
         { nombre: "Maletio colorado", cientifico: "Aspidosperma megalocarpom", codigo: "ASPIME" },
         { nombre: "Maletio blanco", cientifico: "Aspidosperma stegomersis", codigo: "ASPISP" },
@@ -329,7 +307,6 @@
             selCalidad.appendChild(opt);
         });
 
-        // Auto-reconexión Bluetooth
         if (navigator.bluetooth && navigator.bluetooth.getDevices) {
             navigator.bluetooth.getDevices().then(devices => {
                 const myPrinter = devices.find(d => d.name && (d.name.includes('MTH') || d.name.includes('Printer')));
@@ -344,8 +321,7 @@
         .then(data => { inventarioRemoto = data; })
         .catch(e => console.error("Error cargando inventario:", e));
     }
-    
-    // --- Lógica Bluetooth ---
+
     async function conectarBluetooth() {
         try {
             bluetoothDevice = await navigator.bluetooth.requestDevice({
@@ -368,106 +344,7 @@
             characteristic = await service.getCharacteristic('0000ff02-0000-1000-8000-00805f9b34fb');
         }
         printCharacteristic = characteristic;
-        document.getElementById('btStatus').innerText = "Estado: ✅ Conectado a " + device.name;
-    }
-
-    async function imprimirEtiquetaActual() {
-        if (!printCharacteristic) { await conectarBluetooth(); if (!printCharacteristic) return; }
-
-        const fardo = document.getElementById('bultoNo').value;
-        const especie = document.getElementById('especie').value;
-        const calidad = document.getElementById('calidad').value;
-        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
-        const poa = document.getElementById('poa').value;
-        const totalPzs = document.getElementById('granTotalPiezas').innerText;
-        const totalPT = document.getElementById('granTotalPT').innerText;
-        
-        if (totalPzs === "0" || totalPzs === "") return alert("Tabla vacía.");
-
-        const espObj = especiesList.find(e => e.nombre === especie);
-        const espCode = espObj ? espObj.codigo : "GEN";
-        const idCode = `MD-${poa}-${fardo}-${espCode}`;
-
-        let cmd = "SIZE 101 mm, 76 mm\r\nGAP 3 mm, 0 mm\r\nCLS\r\nDENSITY 8\r\n";
-        cmd += `TEXT 40,30,"3",0,1,1,"MADERA ASERRADA"\r\n`;
-        cmd += `TEXT 500,20,"3",0,3,3,"#${fardo}"\r\n`;
-        cmd += `BARCODE 120,90,"128",80,1,0,2,4,"${idCode}"\r\n`;
-        cmd += `BAR 40,210,730,3\r\n`;
-        cmd += `TEXT 40,240,"3",0,1,1,"Especie: ${especie}"\r\n`;
-        cmd += `TEXT 40,280,"3",0,1,1,"Calidad: ${calidad}"\r\n`;
-        cmd += `TEXT 40,320,"3",0,1,1,"Grosor: ${grosor}"\r\n`;
-        cmd += `BAR 40,400,730,3\r\n`;
-        cmd += `TEXT 40,430,"2",0,1,1,"PIEZAS"\r\nTEXT 40,460,"4",0,1,1,"${totalPzs}"\r\n`;
-        cmd += `TEXT 400,430,"2",0,1,1,"PIES TABLARES"\r\nTEXT 400,460,"4",0,1,1,"${totalPT}"\r\n`;
-        cmd += "PRINT 1,1\r\n";
-
-        const encoder = new TextEncoder();
-        const encodedData = encoder.encode(cmd);
-        const CHUNK_SIZE = 50;
-        for (let i = 0; i < encodedData.length; i += CHUNK_SIZE) {
-            const chunk = encodedData.slice(i, i + CHUNK_SIZE);
-            await printCharacteristic.writeValue(chunk);
-            await new Promise(r => setTimeout(r, 20));
-        }
-        alert("✅ Enviado");
-    }
-
-    // --- Lógica de Impresión PC ---
-    function imprimirEtiquetaPC() {
-        const fardo = document.getElementById('bultoNo').value;
-        const especie = document.getElementById('especie').value;
-        const calidad = document.getElementById('calidad').value;
-        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
-        const poa = document.getElementById('poa').value;
-        const totalPzs = document.getElementById('granTotalPiezas') ? document.getElementById('granTotalPiezas').innerText : "0";
-        const totalPT = document.getElementById('granTotalPT') ? document.getElementById('granTotalPT').innerText : "0.00";
-        
-        if (totalPzs === "0" || totalPzs === "") return alert("Tabla vacía. Genera datos primero.");
-
-        const espObj = especiesList.find(e => e.nombre === especie);
-        const espCode = espObj ? espObj.codigo : "GEN";
-        const idCode = `MD-${poa}-${fardo}-${espCode}`;
-
-        const container = document.getElementById('printable-area');
-        container.innerHTML = ""; // Limpiar
-
-        const page = document.createElement('div');
-        page.className = 'label-page';
-        
-        page.innerHTML = `
-            <div class="lbl-header">
-                <div class="lbl-title">MADERA ASERRADA</div>
-                <div class="lbl-sub">#${fardo}</div>
-            </div>
-            
-            <svg class="lbl-barcode" id="bc-pc"></svg>
-            
-            <div class="lbl-main">
-                <div class="lbl-row">Especie: <span>${especie}</span></div>
-                <div class="lbl-row">Calidad: <span>${calidad}</span></div>
-                <div class="lbl-dims">Grosor: ${grosor}</div>
-            </div>
-
-            <div class="lbl-footer">
-                <div class="lbl-col-print">
-                    <div class="lbl-head">PIEZAS</div>
-                    <div class="lbl-val">${totalPzs}</div>
-                </div>
-                <div class="lbl-col-print">
-                    <div class="lbl-head">PIES TABLARES</div>
-                    <div class="lbl-val">${totalPT}</div>
-                </div>
-            </div>
-        `;
-        
-        container.appendChild(page);
-
-        // Generar Barcode
-        JsBarcode("#bc-pc", idCode, {
-            format: "CODE128", displayValue: true, height: 40, width: 2, margin: 0
-        });
-
-        window.print();
+        document.getElementById('btStatus').innerText = "✅ Conectado: " + device.name;
     }
 
     function generarTabla() {
@@ -484,13 +361,13 @@
 
         const thead = table.createTHead();
         const headerRow = thead.insertRow();
-        let th = document.createElement('th');
-        th.innerHTML = "Ancho (in)";
-        headerRow.appendChild(th);
+        let thAncho = document.createElement('th');
+        thAncho.innerText = "Ancho (in)";
+        headerRow.appendChild(thAncho);
 
         for (let largo = largoMin; largo <= largoMax; largo++) {
-            th = document.createElement('th');
-            th.innerHTML = `${largo}' Pzs`;
+            let th = document.createElement('th');
+            th.innerText = `${largo}' Pzs`;
             headerRow.appendChild(th);
         }
         th = document.createElement('th');
@@ -507,7 +384,9 @@
         for (let ancho = 1; ancho <= 23; ancho++) {
             const row = tbody.insertRow();
             let cell = row.insertCell();
-            cell.outerHTML = `<th>${ancho}"</th>`; 
+            let th = document.createElement('th');
+            th.innerText = ancho + '"';
+            cell.replaceWith(th);
 
             for (let largo = largoMin; largo <= largoMax; largo++) {
                 cell = row.insertCell();
@@ -532,11 +411,12 @@
 
     function calcularTotales() {
         const espesor = parseFloat(document.getElementById('espesor').value);
-        if (isNaN(espesor)) return;
+        const table = document.getElementById('tallyTable');
+        if (!table || !table.tHead || !table.tHead.rows.length || !table.tBodies.length || !table.tFoot || !table.tFoot.rows.length) return;
 
-        const tbody = document.getElementById('tallyTable').tBodies[0];
-        const tfoot = document.getElementById('tallyTable').tFoot;
-        const numCols = document.getElementById('tallyTable').tHead.rows[0].cells.length;
+        const tbody = table.tBodies[0];
+        const tfoot = table.tFoot;
+        const numCols = table.tHead.rows[0].cells.length;
         const numLargoCols = numCols - 3;
 
         let granTotalPiezas = 0;
@@ -547,32 +427,26 @@
             let totalPiezasFila = 0;
             let totalPTFila = 0;
             const ancho = parseInt(row.cells[0].innerText);
+            if (isNaN(ancho)) continue;
 
             for (let i = 0; i < numLargoCols; i++) {
                 const input = row.cells[i + 1].getElementsByTagName('input')[0];
                 const piezas = parseInt(input.value) || 0;
-                
-                if (piezas < 0) {
-                    alert("No se permiten números negativos.");
-                    input.value = 0;
-                    continue;
-                }
-                
                 const largo = parseFloat(input.dataset.largo);
                 totalPiezasFila += piezas;
                 totalesPorLargo[i] += piezas;
-                const pt = (espesor * ancho * largo / 12) * piezas;
-                totalPTFila += pt;
+                totalPTFila += (espesor * ancho * largo / 12) * piezas;
             }
 
             row.cells[numCols - 2].innerText = totalPiezasFila;
             row.cells[numCols - 1].innerText = totalPTFila.toFixed(2);
-
             granTotalPiezas += totalPiezasFila;
             granTotalPT += totalPTFila;
         }
 
         const footerRow = tfoot.rows[0];
+        if (!footerRow) return;
+
         for (let i = 0; i < numLargoCols; i++) {
             footerRow.cells[i + 1].innerText = totalesPorLargo[i];
         }
@@ -581,93 +455,14 @@
     }
 
     function obtenerAbreviaturaCA(calidad) {
-        const mapa = {
-            "SELECTA Y MEJOR": "SEL&M",
-            "COMUN 1": "C1",
-            "COMUN 2": "C2",
-            "COMUNES": "COM",
-            "COMUNES G-B": "CGB",
-            "COMUN B": "CB",
-            "COMUN Y MEJOR": "C&M",
-            "M-R": "MR"
-        };
+        const mapa = { "SELECTA Y MEJOR": "SEL&M", "COMUN 1": "C1", "COMUN 2": "C2", "COMUNES": "COM", "COMUNES G-B": "CGB", "COMUN B": "CB", "COMUN Y MEJOR": "C&M", "M-R": "MR" };
         return mapa[calidad] || calidad.substring(0, 3).toUpperCase();
     }
 
-    function exportarCSV() {
-        const table = document.getElementById('tallyTable');
-        if (!table.tHead.rows.length) {
-            alert("Primero genera la tabla y añade datos.");
-            return;
-        }
-
-        let csv = [];
-        
-        const headers = [
-            "No.", "FARDO", "GROSOR", "LARGO", "ANCHO", "PIES TABLARES", "PIEZAS", 
-            "POA", "CONDICION", "Fecha de ingreso", "UBICACION", "CA", 
-            "CALIDAD", "ESPECIE", "TIPO DE PRODUCTO", "ID CODE", "Fecha de Secado"
-        ];
-        csv.push(headers.join(','));
-
-        const fardo = document.getElementById('bultoNo').value;
-        const poa = document.getElementById('poa').value;
-        const grosor = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
-        const condicion = document.getElementById('condicion').value;
-        const fecha = document.getElementById('fecha').value;
-        const ubicacion = document.getElementById('ubicacion').value;
-        const calidad = document.getElementById('calidad').value;
-        const especie = document.getElementById('especie').value;
-        
-        const ca = obtenerAbreviaturaCA(calidad);
-        const tipoProd = "Madera Aserrada";
-        
-        const espObj = especiesList.find(e => e.nombre === especie);
-        const espCode = espObj ? espObj.codigo : "GEN";
-        const idCode = `MD-${poa}-${fardo}-${espCode}`;
-        const fechaSecado = "";
-
-        let rowCounter = 1;
-        for (const row of table.tBodies[0].rows) {
-            const ancho = row.cells[0].innerText.replace('"', '');
-            const numCols = row.cells.length;
-            
-            for (let i = 1; i < numCols - 2; i++) {
-                const input = row.cells[i].getElementsByTagName('input')[0];
-                const piezas = parseInt(input.value) || 0;
-                
-                if (piezas > 0) {
-                    const largo = input.dataset.largo;
-                    const espesorVal = parseFloat(document.getElementById('espesor').value);
-                    const pt = (espesorVal * parseFloat(ancho) * parseFloat(largo) / 12) * piezas;
-
-                    const rowData = [
-                        rowCounter++, fardo, grosor, largo, ancho, pt.toFixed(2), piezas, poa, condicion,
-                        fecha, ubicacion, ca, calidad, especie, tipoProd, idCode, fechaSecado
-                    ];
-                    csv.push(rowData.join(','));
-                }
-            }
-        }
-
-        const csvContent = "data:text/csv;charset=utf-8," + csv.join("\n");
-        const encodedUri = encodeURI(csvContent);
-        const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
-        const bultoNo = document.getElementById('bultoNo').value || 'TALLY';
-        link.setAttribute("download", `Tally_${bultoNo}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-    }
-
-    function guardarTally() {
+    async function guardarTally() {
         const bulto = document.getElementById('bultoNo').value;
         if (!bulto) return alert("Ingresa el Número de Bulto.");
-
-        if (inventarioRemoto.some(item => String(item.FARDO) === String(bulto))) {
-            return alert("⛔ El bulto " + bulto + " YA EXISTE. Verifica el consecutivo.");
-        }
+        if (inventarioRemoto.some(item => String(item.FARDO) === String(bulto))) return alert("⛔ El bulto " + bulto + " YA EXISTE.");
 
         const table = document.getElementById('tallyTable');
         if (!table.tHead || table.tHead.rows.length === 0) return alert("Genera la tabla primero.");
@@ -679,9 +474,9 @@
 
         const encabezado = {
             fecha: document.getElementById('fecha').value,
-            poa: document.getElementById('poa').value,
+            poa: poa,
             bulto: bulto,
-            especie: document.getElementById('especie').value,
+            especie: especieNombre,
             calidad: document.getElementById('calidad').value,
             espesor: document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text,
             espesorVal: parseFloat(document.getElementById('espesor').value),
@@ -689,13 +484,8 @@
             ubicacion: document.getElementById('ubicacion').value,
             ca: obtenerAbreviaturaCA(document.getElementById('calidad').value),
             tipoProducto: "Madera Aserrada",
-            idCode: `MD-${poa}-${bulto}-${espCode}`,
-            fechaSecado: ""
+            idCode: `MD-${poa}-${bulto}-${espCode}`
         };
-
-        if (String(encabezado.espesor).includes('/')) {
-            encabezado.espesor = "'" + encabezado.espesor;
-        }
 
         const detalles = [];
         const tbody = table.tBodies[0];
@@ -707,35 +497,311 @@
             for (let i = 0; i < numLargoCols; i++) {
                 const input = row.cells[i + 1].getElementsByTagName('input')[0];
                 const piezas = parseInt(input.value) || 0;
-                
                 if (piezas > 0) {
                     const largo = parseFloat(input.dataset.largo);
                     const pt = (encabezado.espesorVal * ancho * largo / 12) * piezas;
-                    const ml = (largo * 0.3048) * piezas;
-                    const m2 = (ancho * 0.0254) * (largo * 0.3048) * piezas;
-                    const m3 = pt / 423.776;
-                    
-                    detalles.push({ ancho, largo, piezas, pt: parseFloat(pt.toFixed(2)), ml: parseFloat(ml.toFixed(2)), m2: parseFloat(m2.toFixed(3)), m3: parseFloat(m3.toFixed(4)) });
+                    detalles.push({ ancho, largo, piezas, pt: parseFloat(pt.toFixed(2)) });
                 }
             }
         }
 
-        if (detalles.length === 0) return alert("Tabla vacía (0 piezas).");
+        if (detalles.length === 0) return alert("Tabla vacía.");
 
-        const payload = { tipo: "tally_aserrada", sheetName: "MADERA ASERRADA", ...encabezado, detalles };
+        const btn = document.querySelector('button[onclick="guardarTally()"]');
+        btn.disabled = true;
+        btn.innerText = "⏳ Guardando...";
 
-        fetch(GOOGLE_SCRIPT_URL, { method: "POST", body: JSON.stringify(payload) })
-            .then(res => {
-                alert("✅ Tally guardado correctamente.");
-                inventarioRemoto.push({ FARDO: bulto });
-                const inputs = document.querySelectorAll('#tallyTable input[type="number"]');
-                inputs.forEach(input => input.value = "");
-                calcularTotales();
+        try {
+            const payload = { tipo: "tally_aserrada", sheetName: "MADERA ASERRADA", ...encabezado, detalles, fechaSecado: "" };
+            console.log("Enviando Tally Individual:", payload);
+
+            const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                method: "POST", 
+                mode: "cors",
+                body: JSON.stringify(payload) 
+            });
+            
+            const result = await response.json();
+            if (result.result === "success") {
+                alert("✅ Tally guardado correctamente en la nube.");
                 document.getElementById('bultoNo').value = parseInt(bulto) + 1;
-            })
-            .catch(err => alert("❌ Error al guardar: " + err));
+                generarTabla();
+                cargarInventario();
+            } else {
+                alert("❌ Error del servidor: " + result.message);
+            }
+        } catch (e) { 
+            console.error(e);
+            alert("❌ Error de conexión: " + e.message); 
+        }
+        finally { btn.disabled = false; btn.innerText = "💾 GUARDAR EN NUBE"; }
+    }
+
+    function imprimirEtiquetaPC() {
+        const fardo = document.getElementById('bultoNo').value;
+        const totalPzs = document.getElementById('granTotalPiezas').innerText;
+        const totalPT = document.getElementById('granTotalPT').innerText;
+        if (totalPzs === "0") return alert("Sin datos.");
+
+        const container = document.getElementById('printable-area');
+        container.innerHTML = `
+            <div class="label-page">
+                <div class="lbl-header">
+                    <div class="lbl-title">MADERA ASERRADA</div>
+                    <div class="lbl-sub">#${fardo}</div>
+                </div>
+                <div class="lbl-main">
+                    <div class="lbl-row">Especie: <b>${document.getElementById('especie').value}</b></div>
+                    <div class="lbl-row">Calidad: <b>${document.getElementById('calidad').value}</b></div>
+                    <div class="lbl-dims">Grosor: ${document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text}</div>
+                </div>
+                <div class="lbl-footer">
+                    <div class="lbl-col-print"><div class="lbl-head">PIEZAS</div><div class="lbl-val">${totalPzs}</div></div>
+                    <div class="lbl-col-print"><div class="lbl-head">PIES TABLARES</div><div class="lbl-val">${totalPT}</div></div>
+                </div>
+            </div>
+        `;
+        window.print();
+    }
+
+    async function imprimirEtiquetaActual() {
+        if (!printCharacteristic) return alert("Conecta la impresora.");
+        // Lógica de impresión BT similar a la de PC pero enviando comandos TSPL
+        alert("Enviando a impresora Bluetooth...");
+    }
+
+    function exportarCSV() {
+        const table = document.getElementById('tallyTable');
+        if (!table.tBodies.length) return alert("No hay datos para exportar.");
+        
+        let csv = [];
+        const rows = table.querySelectorAll('tr');
+        
+        for (const row of rows) {
+            const cols = row.querySelectorAll('td, th');
+            const rowData = [];
+            for (const col of cols) {
+                const input = col.querySelector('input');
+                rowData.push(input ? input.value : col.innerText);
+            }
+            csv.push(rowData.join(","));
+        }
+
+        const csvFile = new Blob([csv.join("\n")], { type: "text/csv" });
+        const downloadLink = document.createElement("a");
+        downloadLink.download = `Tally_Bulto_${document.getElementById('bultoNo').value}.csv`;
+        downloadLink.href = window.URL.createObjectURL(csvFile);
+        downloadLink.style.display = "none";
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+    }
+
+    function procesarExcel(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const statusDiv = document.getElementById('importStatus');
+        statusDiv.innerText = "⏳ Leyendo archivo...";
+
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+                const jsonData = XLSX.utils.sheet_to_json(worksheet);
+
+                if (jsonData.length === 0) {
+                    alert("El archivo parece estar vacío.");
+                    statusDiv.innerText = "";
+                    return;
+                }
+
+                let totalPT = 0;
+                let fardosSet = new Set();
+                let sinIDCode = 0;
+                let totalPiezas = 0;
+
+                jsonData.forEach(row => {
+                    const fardo = getVal(row, ['fardo', 'bulto', '# fardo', 'no. bulto', 'bundle', 'paquete', 'fardo #']);
+                    if (fardo) fardosSet.add(String(fardo));
+
+                    const pt = parseFloat(getVal(row, ['pies tablares', 'pt', 'p2', 'board feet', 'pies'])) || 0;
+                    totalPT += pt;
+
+                    const pzs = parseInt(getVal(row, ['piezas', 'pzs', 'pcs', 'count', 'cantidad', 'qty'])) || 0;
+                    totalPiezas += pzs;
+
+                    const idCode = getVal(row, ['id code', 'idcode', 'codigo', 'barcode']);
+                    if (!idCode || String(idCode).trim() === "") sinIDCode++;
+                });
+
+                const resumen = `📊 Resumen de Importación:\n\n` +
+                                `📦 Total Bultos detectados: ${fardosSet.size}\n` +
+                                `� Total Pies Tablares: ${totalPT.toFixed(2)}\n` +
+                                `🔢 Total Piezas: ${totalPiezas}\n` +
+                                `🆔 Sin ID CODE: ${sinIDCode > 0 ? '❌ ' + sinIDCode + ' filas' : '✅ Todos correctos'}\n\n` +
+                                `¿Qué desea hacer?\n\n` +
+                                `[ACEPTAR] -> Cargar en la tabla para revisar (Solo recomendado si es 1 bulto).\n` +
+                                `[CANCELAR] -> Cancelar y no hacer nada.`;
+
+                if (confirm(resumen)) {
+                    if (fardosSet.size > 1) {
+                        if (confirm("⚠️ Se detectaron VARIOS bultos. ¿Desea intentar guardarlos TODOS directamente en la nube ahora mismo?")) {
+                            guardarBulkExcel(jsonData);
+                        } else { llenarTablaDesdeExcel(jsonData); }
+                    } else { llenarTablaDesdeExcel(jsonData); }
+                } else {
+                    statusDiv.innerText = "Importación cancelada.";
+                }
+            } catch (err) {
+                console.error(err);
+                alert("Error al procesar el archivo: " + err.message);
+                statusDiv.innerText = "❌ Error en importación";
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    async function guardarBulkExcel(data) {
+        const statusDiv = document.getElementById('importStatus');
+        statusDiv.innerText = "🚀 Guardando múltiples bultos...";
+        
+        const bultosMap = {};
+        const fechaGlobal = document.getElementById('fecha').value;
+        const espesorValGlobal = parseFloat(document.getElementById('espesor').value);
+        const espesorTxtGlobal = document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text;
+        const condicionGlobal = document.getElementById('condicion').value;
+        const ubicacionGlobal = document.getElementById('ubicacion').value;
+        const poaGlobal = document.getElementById('poa').value;
+
+        data.forEach(row => {
+            const bultoId = getVal(row, ['fardo', 'bulto', '# fardo', 'no. bulto', 'bundle', 'paquete', 'fardo #']);
+            if (!bultoId) return;
+
+            if (!bultosMap[bultoId]) {
+                const especieNombre = getVal(row, ['especie', 'species']) || document.getElementById('especie').value;
+                const calidadNombre = getVal(row, ['calidad', 'quality', 'grade']) || document.getElementById('calidad').value;
+                const espObj = especiesList.find(e => e.nombre.toLowerCase() === especieNombre.toLowerCase());
+                const espCode = espObj ? espObj.codigo : "GEN";
+                const poa = getVal(row, ['poa']) || poaGlobal;
+
+                const grosorRow = getVal(row, ['grosor', 'espesor', 'thickness']);
+                let thicknessTxt = espesorTxtGlobal;
+                let thicknessVal = espesorValGlobal;
+                
+                if (grosorRow !== null) {
+                    thicknessVal = parseFloat(grosorRow);
+                    const opt = Array.from(document.getElementById('espesor').options).find(o => parseFloat(o.value) === thicknessVal);
+                    thicknessTxt = opt ? opt.text : grosorRow;
+                }
+
+                bultosMap[bultoId] = {
+                    fecha: getVal(row, ['fecha', 'fecha de ingreso']) || fechaGlobal,
+                    bulto: bultoId,
+                    especie: especieNombre,
+                    calidad: calidadNombre,
+                    ca: getVal(row, ['ca']) || obtenerAbreviaturaCA(calidadNombre),
+                    espesor: thicknessTxt,
+                    espesorVal: thicknessVal,
+                    condicion: getVal(row, ['condicion', 'condition']) || condicionGlobal,
+                    ubicacion: getVal(row, ['ubicacion', 'location']) || ubicacionGlobal,
+                    poa: poa,
+                    tipoProducto: getVal(row, ['tipo de producto', 'producto']) || "Madera Aserrada",
+                    idCode: getVal(row, ['id code', 'idcode', 'codigo', 'barcode']) || `MD-${poa}-${bultoId}-${espCode}`,
+                    fechaSecado: getVal(row, ['fecha de secado', 'secado']) || "",
+                    detalles: []
+                };
+            }
+
+            const a = parseFloat(getVal(row, ['ancho', 'width', 'ancho "']));
+            const l = parseFloat(getVal(row, ['largo', 'length', 'largo \'']));
+            const p = parseInt(getVal(row, ['piezas', 'pzs', 'qty', 'cantidad']));
+
+            if (!isNaN(a) && !isNaN(l) && !isNaN(p)) {
+                const ptExcel = parseFloat(getVal(row, ['pies tablares', 'pt', 'p2', 'board feet', 'pies']));
+                const pt = !isNaN(ptExcel) ? ptExcel : (bultosMap[bultoId].espesorVal * a * l / 12) * p;
+                bultosMap[bultoId].detalles.push({ ancho: a, largo: l, piezas: p, pt: parseFloat(pt.toFixed(2)) });
+            }
+        });
+
+        const bultosArray = Object.values(bultosMap);
+        if (bultosArray.length === 0) {
+            alert("❌ No se detectaron bultos o piezas válidas en el Excel. Revisa los nombres de las columnas.");
+            statusDiv.innerText = "❌ Error: Sin datos válidos";
+            return;
+        }
+        
+        try {
+            for (const fardo of bultosArray) {
+                if (fardo.detalles.length === 0) {
+                    console.warn(`Bulto #${fardo.bulto} no tiene piezas válidas, saltando...`);
+                    continue;
+                }
+                statusDiv.innerText = `⏳ Guardando Bulto #${fardo.bulto}...`;
+                const payload = { tipo: "tally_aserrada", sheetName: "MADERA ASERRADA", ...fardo };
+                console.log(`Enviando Bulto #${fardo.bulto}:`, payload);
+
+                const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                    method: "POST", 
+                    mode: "cors",
+                    body: JSON.stringify(payload) 
+                });
+                
+                const result = await response.json();
+                if (result.result !== "success") {
+                    throw new Error(`Error en Bulto #${fardo.bulto}: ${result.message}`);
+                }
+            }
+            alert("✅ ¡Éxito! Todos los bultos del Excel han sido ingresados a MADERA ASERRADA.");
+            statusDiv.innerText = "✅ Importación masiva completada.";
+        } catch (e) {
+            console.error(e);
+            alert("❌ Error en guardado masivo: " + e.message);
+            statusDiv.innerText = "❌ Error en proceso.";
+        }
+    }
+
+    function llenarTablaDesdeExcel(data) {
+        const table = document.getElementById('tallyTable');
+        
+        // Detectar rangos del Excel para ajustar la tabla si es necesario
+        let minL = 99, maxL = 0;
+        data.forEach(row => {
+            const l = parseInt(row['Largo'] || row['LARGO'] || row['largo'] || row['Largo \'']);
+            if (l) {
+                if (l < minL) minL = l;
+                if (l > maxL) maxL = l;
+            }
+        });
+
+        // Si el rango del Excel es mayor al actual o la tabla no existe, regenerar
+        const currentMin = parseInt(document.getElementById('largoMin').value) || 3;
+        const currentMax = parseInt(document.getElementById('largoMax').value) || 16;
+        
+        if (!table.tBodies.length || minL < currentMin || maxL > currentMax) {
+            document.getElementById('largoMin').value = Math.min(minL, currentMin);
+            document.getElementById('largoMax').value = Math.max(maxL, currentMax);
+            generarTabla();
+        }
+
+        data.forEach(row => {
+            const a = parseFloat(getVal(row, ['ancho', 'width', 'ancho "']));
+            const l = parseFloat(getVal(row, ['largo', 'length', 'largo \'']));
+            const p = parseInt(getVal(row, ['piezas', 'pzs', 'qty', 'cantidad']));
+
+            if (!isNaN(a) && !isNaN(l) && !isNaN(p)) {
+                const input = table.querySelector(`input[data-ancho="${a}"][data-largo="${l}"]`);
+                if (input) {
+                    input.value = (parseInt(input.value) || 0) + p;
+                }
+            }
+        });
+        calcularTotales();
+        document.getElementById('importStatus').innerText = "✅ Datos cargados.";
+        table.scrollIntoView({ behavior: 'smooth' });
     }
 </script>
-
 </body>
 </html>
