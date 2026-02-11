@@ -477,7 +477,7 @@
             poa: poa,
             bulto: bulto,
             especie: especieNombre,
-            calidad: document.getElementById('calidad').value,
+            calidad: document.getElementById('calidad').value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
             espesor: document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text,
             espesorVal: parseFloat(document.getElementById('espesor').value),
             condicion: document.getElementById('condicion').value,
@@ -666,7 +666,16 @@
 
     async function guardarBulkExcel(data) {
         const statusDiv = document.getElementById('importStatus');
-        statusDiv.innerText = "🚀 Guardando múltiples bultos...";
+        
+        // 1. Actualizar inventario remoto para saber qué ya existe y evitar duplicados
+        statusDiv.innerText = "🔄 Verificando duplicados en la nube...";
+        try {
+            const res = await fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA");
+            const dataNube = await res.json();
+            if(Array.isArray(dataNube)) inventarioRemoto = dataNube;
+        } catch(e) { console.warn("No se pudo actualizar inventario previo", e); }
+
+        statusDiv.innerText = "🚀 Preparando datos...";
         
         const bultosMap = {};
         const fechaGlobal = document.getElementById('fecha').value;
@@ -682,19 +691,25 @@
 
             if (!bultosMap[bultoId]) {
                 const especieNombre = getVal(row, ['especie', 'species']) || document.getElementById('especie').value;
-                const calidadNombre = getVal(row, ['calidad', 'quality', 'grade']) || document.getElementById('calidad').value;
+                let calidadNombre = getVal(row, ['calidad', 'quality', 'grade']) || document.getElementById('calidad').value;
+                calidadNombre = String(calidadNombre).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
                 const espObj = especiesList.find(e => e.nombre.toLowerCase() === especieNombre.toLowerCase());
                 const espCode = espObj ? espObj.codigo : "GEN";
                 const poa = getVal(row, ['poa']) || poaGlobal;
 
                 const grosorRow = getVal(row, ['grosor', 'espesor', 'thickness']);
-                let thicknessTxt = espesorTxtGlobal;
+                let thicknessTxt = String(espesorValGlobal);
                 let thicknessVal = espesorValGlobal;
                 
                 if (grosorRow !== null) {
-                    thicknessVal = parseFloat(grosorRow);
-                    const opt = Array.from(document.getElementById('espesor').options).find(o => parseFloat(o.value) === thicknessVal);
-                    thicknessTxt = opt ? opt.text : grosorRow;
+                    if (String(grosorRow).includes('/')) {
+                        const parts = String(grosorRow).split('/');
+                        thicknessVal = parseFloat(parts[0]) / parseFloat(parts[1]);
+                    } else {
+                        thicknessVal = parseFloat(grosorRow);
+                    }
+                    thicknessTxt = !isNaN(thicknessVal) ? String(thicknessVal) : String(grosorRow);
                 }
 
                 bultosMap[bultoId] = {
@@ -733,34 +748,58 @@
             return;
         }
         
-        try {
+        let guardados = 0;
+        let omitidos = 0;
+        let errores = [];
+
+        // Procesar uno por uno sin detenerse si hay error individual
             for (const fardo of bultosArray) {
+                // VERIFICAR SI YA EXISTE EN LA NUBE
+                const existe = inventarioRemoto.some(r => String(r['FARDO']) === String(fardo.bulto));
+                if (existe) {
+                    console.log(`Saltando Bulto #${fardo.bulto} (Ya existe en sistema)`);
+                    omitidos++;
+                    continue;
+                }
+
                 if (fardo.detalles.length === 0) {
                     console.warn(`Bulto #${fardo.bulto} no tiene piezas válidas, saltando...`);
                     continue;
                 }
+
                 statusDiv.innerText = `⏳ Guardando Bulto #${fardo.bulto}...`;
                 const payload = { tipo: "tally_aserrada", sheetName: "MADERA ASERRADA", ...fardo };
-                console.log(`Enviando Bulto #${fardo.bulto}:`, payload);
 
-                const response = await fetch(GOOGLE_SCRIPT_URL, { 
-                    method: "POST", 
-                    mode: "cors",
-                    body: JSON.stringify(payload) 
-                });
-                
-                const result = await response.json();
-                if (result.result !== "success") {
-                    throw new Error(`Error en Bulto #${fardo.bulto}: ${result.message}`);
+                try {
+                    const response = await fetch(GOOGLE_SCRIPT_URL, { 
+                        method: "POST", 
+                        mode: "cors",
+                        body: JSON.stringify(payload) 
+                    });
+                    
+                    const result = await response.json();
+                    if (result.result !== "success") {
+                        throw new Error(result.message);
+                    }
+                    guardados++;
+                    // Agregamos a la lista local temporalmente para que si falla el siguiente, este ya cuente como existente
+                    inventarioRemoto.push({ FARDO: fardo.bulto });
+                } catch (err) {
+                    console.error(`Error en Bulto #${fardo.bulto}:`, err);
+                    errores.push(`Bulto #${fardo.bulto}: ${err.message}`);
                 }
             }
-            alert("✅ ¡Éxito! Todos los bultos del Excel han sido ingresados a MADERA ASERRADA.");
-            statusDiv.innerText = "✅ Importación masiva completada.";
-        } catch (e) {
-            console.error(e);
-            alert("❌ Error en guardado masivo: " + e.message);
-            statusDiv.innerText = "❌ Error en proceso.";
-        }
+            
+            let msg = `📊 Proceso finalizado.\n\n✅ Nuevos guardados: ${guardados}\n⏭️ Omitidos (Ya existían): ${omitidos}`;
+            
+            if (errores.length > 0) {
+                msg += `\n\n❌ Errores (${errores.length}):\n` + errores.slice(0, 5).join("\n") + (errores.length > 5 ? "\n..." : "");
+                statusDiv.innerText = "⚠️ Finalizado con errores.";
+            } else {
+                statusDiv.innerText = "✅ Importación masiva completada.";
+            }
+            
+            alert(msg);
     }
 
     function llenarTablaDesdeExcel(data) {

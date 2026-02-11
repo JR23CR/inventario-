@@ -314,9 +314,27 @@
     }
 
     function formatearGrosor(valor) {
+        if (!valor) return "";
         if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
             const fecha = new Date(valor);
             return `${fecha.getDate()}/${fecha.getMonth() + 1}`;
+        }
+        // Reemplazar coma por punto
+        const val = parseFloat(String(valor).replace(',', '.'));
+        if (!isNaN(val)) {
+            const epsilon = 0.01;
+            if (Math.abs(val - 0.5) < epsilon) return "2/4";
+            if (Math.abs(val - 0.75) < epsilon) return "3/4";
+            if (Math.abs(val - 1.0) < epsilon) return "4/4";
+            if (Math.abs(val - 1.25) < epsilon) return "5/4";
+            if (Math.abs(val - 1.5) < epsilon) return "6/4";
+            if (Math.abs(val - 1.75) < epsilon) return "7/4";
+            if (Math.abs(val - 2.0) < epsilon) return "8/4";
+            if (Math.abs(val - 2.25) < epsilon) return "9/4";
+            if (Math.abs(val - 2.5) < epsilon) return "10/4";
+            if (Math.abs(val - 2.75) < epsilon) return "11/4";
+            if (Math.abs(val - 3.0) < epsilon) return "12/4";
+            if (Math.abs(val - 4.0) < epsilon) return "16/4";
         }
         return valor || '';
     }

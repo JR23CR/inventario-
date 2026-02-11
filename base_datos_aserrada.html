@@ -259,6 +259,31 @@
         });
     };
 
+    function formatThickness(v) {
+        if (!v) return "";
+        if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
+            const d = new Date(v);
+            return `${d.getDate()}/${d.getMonth() + 1}`;
+        }
+        // Reemplazar coma por punto
+        const val = parseFloat(String(v).replace(',', '.'));
+        if (isNaN(val)) return v;
+        const epsilon = 0.01;
+        if (Math.abs(val - 0.5) < epsilon) return "1/2";
+        if (Math.abs(val - 0.75) < epsilon) return "3/4";
+        if (Math.abs(val - 1.0) < epsilon) return "4/4";
+        if (Math.abs(val - 1.25) < epsilon) return "5/4";
+        if (Math.abs(val - 1.5) < epsilon) return "6/4";
+        if (Math.abs(val - 1.75) < epsilon) return "7/4";
+        if (Math.abs(val - 2.0) < epsilon) return "8/4";
+        if (Math.abs(val - 2.25) < epsilon) return "9/4";
+        if (Math.abs(val - 2.5) < epsilon) return "10/4";
+        if (Math.abs(val - 2.75) < epsilon) return "11/4";
+        if (Math.abs(val - 3.0) < epsilon) return "12/4";
+        if (Math.abs(val - 4.0) < epsilon) return "16/4";
+        return val;
+    }
+
     function procesarDatos(data) {
         const agrupado = {};
 
@@ -272,7 +297,7 @@
                     fardo: fardo,
                     especie: row['ESPECIE'] || '---',
                     calidad: row['CALIDAD'] || '',
-                    grosor: row['GROSOR'] || '',
+                    grosor: formatThickness(row['GROSOR'] || ''),
                     condicion: row['CONDICION'] || '',
                     ubicacion: row['UBICACION'] || '',
                     piezas: 0,

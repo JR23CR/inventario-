@@ -717,9 +717,15 @@
                 const speciesMap = {};
                 globalDataMDA.forEach(row => {
                     const esp = row['ESPECIE'] || 'Desconocida';
+                    const cond = (row['CONDICION'] || row['Condicion'] || '').toUpperCase();
                     let ptVal = row['PIES TABLARES'] || row['PT'] || 0;
                     if (typeof ptVal === 'string') ptVal = ptVal.replace(/,/g, '');
-                    speciesMap[esp] = (speciesMap[esp] || 0) + (parseFloat(ptVal) || 0);
+                    const val = parseFloat(ptVal) || 0;
+                    
+                    if (!speciesMap[esp]) speciesMap[esp] = { total: 0, ad: 0, kd: 0 };
+                    speciesMap[esp].total += val;
+                    if (cond.includes('A-D') || cond.includes('AD')) speciesMap[esp].ad += val;
+                    if (cond.includes('K-D') || cond.includes('KD')) speciesMap[esp].kd += val;
                 });
 
                 Object.keys(speciesMap).sort().forEach(esp => {
@@ -730,7 +736,11 @@
                     btn.innerHTML = `
                         <div class="p-3 bg-emerald-100 text-emerald-700 rounded-full mb-3 group-hover:bg-emerald-600 group-hover:text-white transition-colors"><i data-lucide="tree-pine" class="w-6 h-6"></i></div>
                         <span class="font-bold text-slate-700 text-lg">${esp}</span>
-                        <span class="text-sm text-slate-500 mt-1 font-mono">${speciesMap[esp].toLocaleString('en-US', {maximumFractionDigits: 2})} PT</span>
+                        <span class="text-sm text-slate-500 mt-1 font-mono">${speciesMap[esp].total.toLocaleString('en-US', {maximumFractionDigits: 2})} PT</span>
+                        <div class="flex gap-2 mt-2 text-[10px] font-bold uppercase">
+                            <span class="text-blue-600 bg-blue-50 px-2 py-1 rounded border border-blue-100">AD: ${speciesMap[esp].ad.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>
+                            <span class="text-orange-600 bg-orange-50 px-2 py-1 rounded border border-orange-100">KD: ${speciesMap[esp].kd.toLocaleString('en-US', {maximumFractionDigits: 0})}</span>
+                        </div>
                         <span class="text-xs text-emerald-600 mt-2 font-medium">Ver Reporte Detallado &rarr;</span>
                     `;
                     speciesGrid.appendChild(btn);
@@ -815,8 +825,38 @@
             const species = {};
             const dimensions = new Set();
 
-            // Helper para corregir fechas (ej: 3/4 -> 2026-04-03 -> 3/4)
-            const formatDim = (v) => {
+            // Helper para corregir fechas y convertir decimales a fracciones (Grosor)
+            const formatThickness = (v) => {
+                if (!v) return "";
+
+                if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
+                    const d = new Date(v);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                }
+
+                // Reemplazar coma por punto para asegurar parseo correcto
+                let val = parseFloat(String(v).replace(',', '.'));
+                if (!isNaN(val)) {
+                    const epsilon = 0.01;
+                    if (Math.abs(val - 0.5) < epsilon) return "2/4";
+                    if (Math.abs(val - 0.75) < epsilon) return "3/4";
+                    if (Math.abs(val - 1.0) < epsilon) return "4/4";
+                    if (Math.abs(val - 1.25) < epsilon) return "5/4";
+                    if (Math.abs(val - 1.5) < epsilon) return "6/4";
+                    if (Math.abs(val - 1.75) < epsilon) return "7/4";
+                    if (Math.abs(val - 1.75) < epsilon) return "7/4";
+                    if (Math.abs(val - 2.0) < epsilon) return "8/4";
+                    if (Math.abs(val - 2.25) < epsilon) return "9/4";
+                    if (Math.abs(val - 2.5) < epsilon) return "10/4";
+                    if (Math.abs(val - 2.75) < epsilon) return "11/4";
+                    if (Math.abs(val - 3.0) < epsilon) return "12/4";
+                    if (Math.abs(val - 4.0) < epsilon) return "16/4";
+                }
+                return v;
+            };
+            
+            // Helper para anchos (solo corrección de fecha)
+            const formatWidth = (v) => {
                 if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
                     const d = new Date(v);
                     return `${d.getDate()}/${d.getMonth() + 1}`;
@@ -832,8 +872,8 @@
                 };
 
                 const esp = getVal(['Especie', 'ESPECIE', 'especie']) || 'Sin Especie';
-                const grosor = formatDim(getVal(['Grosor "', 'Grosor', 'GROSOR', 'grosor']));
-                const ancho = formatDim(getVal(['Ancho "', 'Ancho', 'ANCHO', 'ancho']));
+                const grosor = formatThickness(getVal(['Grosor "', 'Grosor', 'GROSOR', 'grosor']));
+                const ancho = formatWidth(getVal(['Ancho "', 'Ancho', 'ANCHO', 'ancho']));
                 const dimKey = `${grosor} x ${ancho}`;
                 
                 const unidad = (getVal(['Unidad', 'UNIDAD', 'unidad']) || 'm2').toLowerCase();
@@ -1212,16 +1252,42 @@
             const largos = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
             
             filteredData.forEach(row => {
-                const calidad = getVal(row, ['CALIDAD', 'Calidad']) || 'Sin Clasificar';
-                // Helper para corregir fechas en grosor
-                const formatDim = (v) => {
+                let calidad = getVal(row, ['CALIDAD', 'Calidad']) || 'Sin Clasificar';
+                const cond = (getVal(row, ['CONDICION', 'Condicion']) || '').toUpperCase();
+
+                if ((cond.includes('A-D') || cond.includes('AD')) && !calidad.includes('AD')) calidad += " AD";
+                else if ((cond.includes('K-D') || cond.includes('KD')) && !calidad.includes('KD')) calidad += " KD";
+
+                // Helper para corregir fechas en grosor y convertir a fracción
+                const formatThickness = (v) => {
+                    if (!v) return "";
+
                     if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
                         const d = new Date(v);
                         return `${d.getDate()}/${d.getMonth() + 1}`;
                     }
+
+                    // Reemplazar coma por punto
+                    let val = parseFloat(String(v).replace(',', '.'));
+                    if (!isNaN(val)) {
+                        const epsilon = 0.01;
+                        if (Math.abs(val - 0.5) < epsilon) return "2/4";
+                        if (Math.abs(val - 0.75) < epsilon) return "3/4";
+                        if (Math.abs(val - 1.0) < epsilon) return "4/4";
+                        if (Math.abs(val - 1.25) < epsilon) return "5/4";
+                        if (Math.abs(val - 1.5) < epsilon) return "6/4";
+                        if (Math.abs(val - 1.75) < epsilon) return "7/4";
+                        if (Math.abs(val - 1.75) < epsilon) return "7/4";
+                        if (Math.abs(val - 2.0) < epsilon) return "8/4";
+                        if (Math.abs(val - 2.25) < epsilon) return "9/4";
+                        if (Math.abs(val - 2.5) < epsilon) return "10/4";
+                        if (Math.abs(val - 2.75) < epsilon) return "11/4";
+                        if (Math.abs(val - 3.0) < epsilon) return "12/4";
+                        if (Math.abs(val - 4.0) < epsilon) return "16/4";
+                    }
                     return v;
                 };
-                const grosor = formatDim(getVal(row, ['GROSOR', 'Grosor', 'Espesor']) || 'S/G');
+                const grosor = formatThickness(getVal(row, ['GROSOR', 'Grosor', 'Espesor']) || 'S/G');
                 
                 let largo = parseInt(getVal(row, ['LARGO', 'Largo', 'Largo (ft)', 'Largo_Ft'])) || 0;
                 
@@ -1237,9 +1303,12 @@
                 if (largo > 16) largo = 16; 
 
                 if (!pivot[calidad]) pivot[calidad] = {};
-                if (!pivot[calidad][grosor]) pivot[calidad][grosor] = Array(17).fill(0); // Indices 0-16
+                if (!pivot[calidad][grosor]) pivot[calidad][grosor] = { largos: Array(17).fill(0), ad: 0, kd: 0 };
 
-                pivot[calidad][grosor][largo] += pt;
+                pivot[calidad][grosor].largos[largo] += pt;
+                
+                if (cond.includes('A-D') || cond.includes('AD')) pivot[calidad][grosor].ad += pt;
+                if (cond.includes('K-D') || cond.includes('KD')) pivot[calidad][grosor].kd += pt;
             });
 
             // 3. Renderizar Headers
@@ -1272,6 +1341,8 @@
             let grandSum35 = 0;
             let grandSum67 = 0;
             let grandSum8Plus = 0;
+            let grandSumAD = 0;
+            let grandSumKD = 0;
 
             Object.keys(pivot).sort().forEach(calidad => {
                 const grosores = pivot[calidad];
@@ -1295,7 +1366,7 @@
                     let rowTotal = 0;
 
                     largos.forEach(l => {
-                        const val = data[l];
+                        const val = data.largos[l];
                         rowTotal += val;
                         colTotals[l] += val;
                         
@@ -1310,6 +1381,8 @@
                     grandSum35 += sum35;
                     grandSum67 += sum67;
                     grandSum8Plus += sum8Plus;
+                    grandSumAD += data.ad;
+                    grandSumKD += data.kd;
 
                     rowHTML += `<td class="px-2 py-2 font-bold bg-emerald-50 text-emerald-800 border-l border-emerald-200">${sum35.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;
                     rowHTML += `<td class="px-2 py-2 font-bold bg-emerald-50 text-emerald-800 border-l border-emerald-200">${sum67.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>`;

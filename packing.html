@@ -139,6 +139,32 @@
             return parseFloat(s) || 0;
         }
 
+        function formatThickness(v) {
+            if (!v) return "";
+            if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
+                const d = new Date(v);
+                return `${d.getDate()}/${d.getMonth() + 1}`;
+            }
+            // Reemplazar coma por punto
+            const val = parseFloat(String(v).replace(',', '.'));
+            if (!isNaN(val)) {
+                const epsilon = 0.01;
+                if (Math.abs(val - 0.5) < epsilon) return "2/4";
+                if (Math.abs(val - 0.75) < epsilon) return "3/4";
+                if (Math.abs(val - 1.0) < epsilon) return "4/4";
+                if (Math.abs(val - 1.25) < epsilon) return "5/4";
+                if (Math.abs(val - 1.5) < epsilon) return "6/4";
+                if (Math.abs(val - 1.75) < epsilon) return "7/4";
+                if (Math.abs(val - 2.0) < epsilon) return "8/4";
+                if (Math.abs(val - 2.25) < epsilon) return "9/4";
+                if (Math.abs(val - 2.5) < epsilon) return "10/4";
+                if (Math.abs(val - 2.75) < epsilon) return "11/4";
+                if (Math.abs(val - 3.0) < epsilon) return "12/4";
+                if (Math.abs(val - 4.0) < epsilon) return "16/4";
+            }
+            return v;
+        }
+
         async function buscarLote() {
             const input = document.getElementById('loteInput').value;
             // Separar por comas para permitir múltiples lotes
@@ -263,7 +289,7 @@
                     <td class="p-2 border no-print"><input type="checkbox" checked class="w-4 h-4 fardo-check" data-index="${index}"></td>
                     <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
-                    <td class="p-2 border">${grosor.toFixed(2)}</td>
+                    <td class="p-2 border">${formatThickness(grosor)}</td>
                     <td class="p-2 border">${ancho.toFixed(2)}</td>
                     <td class="p-2 border">${piezas}</td>
                     <td class="p-2 border">${largo.toFixed(2)}</td>

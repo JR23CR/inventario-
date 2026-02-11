@@ -82,7 +82,8 @@
             </select>
 
             <input type="text" id="searchBulto" placeholder="Ej: 501">
-            <button class="btn-search" onclick="buscarBulto()">BUSCAR</button>
+            <button class="btn-search" onclick="buscarBulto()">BUSCAR FARDO</button>
+            <button class="btn-search" onclick="verDuplicados()" style="background-color: #f39c12; margin-top: 10px;">VER FARDOS DUPLICADOS</button>
         </div>
 
         <div id="resultado"></div>
@@ -93,6 +94,17 @@
     <script>
         const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
         let inventario = [];
+
+        // Helper para obtener valores de forma flexible (Mayúsculas/Minúsculas)
+        const getVal = (row, keys) => {
+            if (!row) return null;
+            const rowKeys = Object.keys(row);
+            for (const k of keys) {
+                const match = rowKeys.find(rk => rk.toLowerCase().trim() === k.toLowerCase().trim());
+                if (match !== undefined) return row[match];
+            }
+            return null;
+        };
 
         window.onload = function() {
             cargarInventario();
@@ -123,7 +135,7 @@
                 status.style.color = "#27ae60";
                 
                 // Llenar filtro de especies
-                const especies = [...new Set(data.map(item => item['ESPECIE']))];
+                const especies = [...new Set(data.map(item => getVal(item, ['ESPECIE', 'especie'])))];
                 const select = document.getElementById('filtroEspecie');
                 especies.forEach(esp => {
                     if(esp) {
@@ -160,7 +172,11 @@
             resultadoDiv.innerHTML = "";
 
             // Filtrar por Fardo Y Especie (si está seleccionada)
-            const filas = inventario.filter(row => String(row['FARDO']) === String(bulto) && (!especieFiltro || row['ESPECIE'] === especieFiltro));
+            const filas = inventario.filter(row => {
+                const fardoRow = getVal(row, ['FARDO', 'fardo', 'bulto', 'no. bulto', '# fardo']);
+                const especieRow = getVal(row, ['ESPECIE', 'especie']);
+                return String(fardoRow) === String(bulto) && (!especieFiltro || especieRow === especieFiltro);
+            });
 
             if (filas.length === 0) {
                 resultadoDiv.innerHTML = `<div class="card" style="color:red; text-align:center;">❌ Bulto #${bulto} no encontrado ${especieFiltro ? 'en ' + especieFiltro : ''}.</div>`;
@@ -171,7 +187,7 @@
             const head = filas[0];
             
             // Aseguramos que el bulto sea un string seguro para el HTML
-            const bultoSafe = String(head['FARDO']).replace(/'/g, "\\'");
+            const bultoSafe = String(getVal(head, ['FARDO', 'fardo'])).replace(/'/g, "\\'");
 
             // Calcular totales
             let totalPiezas = 0;
@@ -179,15 +195,15 @@
             let detallesHTML = "";
 
             filas.forEach(f => {
-                const pzs = parseInt(f['PIEZAS']) || 0;
-                const pt = parseFloat(f['PIES TABLARES']) || 0;
+                const pzs = parseInt(getVal(f, ['PIEZAS', 'piezas'])) || 0;
+                const pt = parseFloat(getVal(f, ['PIES TABLARES', 'pies tablares', 'pt'])) || 0;
                 totalPiezas += pzs;
                 totalPT += pt;
 
                 detallesHTML += `
                     <tr>
-                        <td>${f['ANCHO']}"</td>
-                        <td>${f['LARGO']}'</td>
+                        <td>${getVal(f, ['ANCHO', 'ancho'])}"</td>
+                        <td>${getVal(f, ['LARGO', 'largo'])}'</td>
                         <td>${pzs}</td>
                         <td>${pt.toFixed(2)}</td>
                     </tr>
@@ -195,21 +211,21 @@
             });
 
             // Formatear fecha si es posible
-            let fechaIngreso = head['Fecha de ingreso'];
+            let fechaIngreso = getVal(head, ['Fecha de ingreso', 'fecha']);
             if (fechaIngreso && fechaIngreso.includes('T')) {
                 fechaIngreso = new Date(fechaIngreso).toLocaleDateString();
             }
 
             resultadoDiv.innerHTML = `
                 <div class="card">
-                    <h3 style="margin-top:0; color:#2c3e50;">📦 Bulto #${head['FARDO']}</h3>
+                    <h3 style="margin-top:0; color:#2c3e50;">📦 Bulto #${getVal(head, ['FARDO', 'fardo'])}</h3>
                     
                     <div class="info-grid">
-                        <div class="info-item"><span class="info-label">Especie</span>${head['ESPECIE']}</div>
-                        <div class="info-item"><span class="info-label">Calidad</span>${head['CALIDAD']}</div>
-                        <div class="info-item"><span class="info-label">Grosor</span>${head['GROSOR']}</div>
-                        <div class="info-item"><span class="info-label">Condición</span>${head['CONDICION']}</div>
-                        <div class="info-item"><span class="info-label">Ubicación</span>${head['UBICACION']}</div>
+                        <div class="info-item"><span class="info-label">Especie</span>${getVal(head, ['ESPECIE', 'especie'])}</div>
+                        <div class="info-item"><span class="info-label">Calidad</span>${getVal(head, ['CALIDAD', 'calidad'])}</div>
+                        <div class="info-item"><span class="info-label">Grosor</span>${getVal(head, ['GROSOR', 'grosor'])}</div>
+                        <div class="info-item"><span class="info-label">Condición</span>${getVal(head, ['CONDICION', 'condicion'])}</div>
+                        <div class="info-item"><span class="info-label">Ubicación</span>${getVal(head, ['UBICACION', 'ubicacion'])}</div>
                         <div class="info-item"><span class="info-label">Fecha</span>${fechaIngreso}</div>
                     </div>
 
@@ -234,33 +250,190 @@
                         </tfoot>
                     </table>
 
-                    <button class="btn-delete" onclick="darDeBaja('${bultoSafe}')">🗑️ DAR DE BAJA (Mover a Salidas)</button>
+                    <button class="btn-delete" onclick="darDeBaja('${bultoSafe}', 'bulto')">🗑️ DAR DE BAJA (Mover a Salidas)</button>
                 </div>
             `;
         }
 
-        function darDeBaja(bulto) {
-            console.log("Intentando dar de baja bulto:", bulto);
-            
-            const motivo = prompt("¿Estás seguro de dar de baja el Bulto #" + bulto + "?\n\nIngresa el MOTIVO (Venta, Merma, Error):", "Venta");
-            
-            if (motivo === null) return; // Usuario canceló
-            if (motivo.trim() === "") {
-                alert("❌ Debes ingresar un motivo para continuar.");
+        function verDuplicados() {
+            const resultadoDiv = document.getElementById('resultado');
+            resultadoDiv.innerHTML = "";
+            const status = document.getElementById('status');
+            status.innerText = "Buscando duplicados...";
+
+            const fardosMap = {};
+            inventario.forEach(row => {
+                const fardo = getVal(row, ['FARDO', 'fardo', 'bulto', 'no. bulto', '# fardo']);
+                if (!fardo) return;
+
+                const key = String(fardo).trim();
+                if (!fardosMap[key]) {
+                    fardosMap[key] = [];
+                }
+                fardosMap[key].push(row);
+            });
+
+            const duplicados = [];
+            for (const [fardo, filas] of Object.entries(fardosMap)) {
+                // Agrupar por ID CODE para distinguir entradas reales de detalles de piezas
+                const entries = {};
+                filas.forEach(r => {
+                    const id = getVal(r, ['ID CODE', 'id code', 'idcode']) || 'SIN-ID';
+                    if(!entries[id]) entries[id] = [];
+                    entries[id].push(r);
+                });
+
+                if (Object.keys(entries).length > 1) {
+                    duplicados.push({ fardo, entries, type: 'MULTIPLE_IDS' });
+                } else {
+                    // Verificar duplicidad de contenido (Mismo ID pero filas repetidas exactamente)
+                    const allRows = filas;
+                    const signatures = allRows.map(r => `${getVal(r,['GROSOR','grosor'])}-${getVal(r,['ANCHO','ancho'])}-${getVal(r,['LARGO','largo'])}-${getVal(r,['PIEZAS','piezas'])}`);
+                    const uniqueSigs = new Set(signatures);
+                    const uniqueRowCount = uniqueSigs.size;
+
+                    // Si hay más filas que firmas únicas y es un múltiplo exacto, es un duplicado de contenido.
+                    if (uniqueRowCount > 0 && allRows.length > uniqueRowCount && allRows.length % uniqueRowCount === 0) {
+                        const numDuplicates = allRows.length / uniqueRowCount;
+                        const virtualEntries = {};
+                        for (let i = 0; i < numDuplicates; i++) {
+                            // Creamos un ID virtual para cada copia detectada
+                            const virtualId = `COPIA-${i + 1}`;
+                            const startIndex = i * uniqueRowCount;
+                            const endIndex = startIndex + uniqueRowCount;
+                            virtualEntries[virtualId] = allRows.slice(startIndex, endIndex);
+                        }
+                        duplicados.push({ fardo, entries: virtualEntries, type: 'CONTENT_DUPLICATE' });
+                    }
+                }
+            }
+
+            if (duplicados.length === 0) {
+                resultadoDiv.innerHTML = `<div class="card" style="color:green; text-align:center;">✅ No se encontraron fardos con entradas duplicadas.</div>`;
+                status.innerText = "Búsqueda finalizada.";
                 return;
             }
+
+            // Generar lista de números para el resumen explícito
+            const listaNumeros = duplicados.map(d => `#${d.fardo}`).join(", ");
+
+            let html = `
+                <div class="card" style="background-color: #fffbe6; border: 1px solid #ffe58f; text-align:center;">
+                    <h3 style="margin-top:0; color:#d35400;">⚠️ ¡Atención! Hay ${duplicados.length} fardos duplicados</h3>
+                    <p style="font-size:1.1rem; font-weight:bold; color:#2c3e50; margin: 10px 0;">Son los fardos: ${listaNumeros}</p>
+                    <p style="font-size:0.9rem; margin-bottom:0; color:#7f8c8d;">Se detectaron múltiples entradas o contenido duplicado.</p>
+                </div>
+            `;
+            
+            duplicados.forEach(dup => {
+                html += `<div class="card" style="border-left: 5px solid #e74c3c; padding: 15px;">
+                    <h3 style="margin-top:0; color:#2c3e50; display:flex; justify-content:space-between;">
+                        <span>📦 Fardo #${dup.fardo}</span>
+                        <span style="font-size:0.8em; color:#e74c3c; background:#fadbd8; padding:2px 8px; border-radius:10px;">${Object.keys(dup.entries).length} Entradas</span>
+                    </h3>
+                    <div style="overflow-x:auto;">
+                    <table style="width:100%; border-collapse: collapse; font-size: 0.85rem; margin-top:10px;">
+                        <thead>
+                            <tr style="background:#f8f9fa; color:#7f8c8d; text-transform:uppercase;">
+                                <th style="padding:8px; text-align:left;">ID / Fecha</th>
+                                <th style="padding:8px; text-align:left;">Especie / Calidad</th>
+                                <th style="padding:8px; text-align:center;">Pzs</th>
+                                <th style="padding:8px; text-align:center;">PT</th>
+                                <th style="padding:8px; text-align:center;">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>`;
+                
+                Object.entries(dup.entries).forEach(([id, rows]) => {
+                    const head = rows[0];
+                    let totalPzs = 0;
+                    let totalPT = 0;
+                    rows.forEach(r => {
+                        totalPzs += parseInt(getVal(r, ['PIEZAS', 'piezas'])) || 0;
+                        totalPT += parseFloat(getVal(r, ['PIES TABLARES', 'pies tablares', 'pt'])) || 0;
+                    });
+                    
+                    let fechaIngreso = getVal(head, ['Fecha de ingreso', 'fecha']);
+                    if (fechaIngreso && fechaIngreso.includes('T')) {
+                        fechaIngreso = new Date(fechaIngreso).toLocaleDateString();
+                    } else if (!fechaIngreso) {
+                        fechaIngreso = "--/--/--";
+                    }
+
+                    const idCodeSafe = String(id).replace(/'/g, "\\'");
+                    const especie = getVal(head, ['ESPECIE', 'especie']) || '-';
+                    const calidad = getVal(head, ['CALIDAD', 'calidad']) || '-';
+
+                    const isContentDup = dup.type === 'CONTENT_DUPLICATE';
+                    let onClickAction, buttonText;
+
+                    if (isContentDup) {
+                        const dupIndex = parseInt(id.split('-')[1]) - 1; // Extrae el índice (0, 1, ...) de "COPIA-1"
+                        onClickAction = `darDeBaja('${dup.fardo}:${dupIndex}', 'bulto_duplicado')`;
+                        buttonText = '🗑️ Baja esta Copia';
+                    } else {
+                        onClickAction = `darDeBaja('${idCodeSafe}', 'idCode')`;
+                        buttonText = '🗑️ Baja';
+                    }
+
+                    html += `
+                        <tr style="border-bottom:1px solid #eee;">
+                            <td style="padding:8px;">
+                                <div style="font-weight:bold; color:#2980b9;">${id}</div>
+                                <div style="font-size:0.75rem; color:#95a5a6;">${fechaIngreso}</div>
+                            </td>
+                            <td style="padding:8px;">
+                                <div style="font-weight:bold;">${especie}</div>
+                                <div style="font-size:0.75rem; color:#7f8c8d;">${calidad}</div>
+                            </td>
+                            <td style="padding:8px; text-align:center; font-weight:bold;">${totalPzs}</td>
+                            <td style="padding:8px; text-align:center; font-weight:bold;">${totalPT.toFixed(2)}</td>
+                            <td style="padding:8px; text-align:center;">
+                                <button class="btn-delete" style="margin:0; padding:6px 12px; font-size:0.8rem; width:auto;" onclick="${onClickAction}">${buttonText}</button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                html += `</tbody></table></div></div>`;
+            });
+
+            resultadoDiv.innerHTML = html;
+            status.innerText = `Se encontraron ${duplicados.length} números de fardo con múltiples entradas.`;
+        }
+
+        function darDeBaja(identifier, type = 'bulto') {
+            let promptMsg, payload, defaultMotivo, fardoNum;
+
+            if (type === 'bulto') {
+                fardoNum = identifier;
+                promptMsg = `¿Estás seguro de dar de baja TODAS las entradas del Bulto #${identifier}?\n\nIngresa el MOTIVO (Venta, Merma, Error):`;
+                defaultMotivo = "Venta";
+                payload = { tipo: "baja_aserrada", bulto: identifier };
+            } else if (type === 'idCode') {
+                fardoNum = (identifier.split('-')[2] || identifier);
+                promptMsg = `¿Estás seguro de dar de baja esta entrada específica del Bulto #${fardoNum}?\n\nID Code: ${identifier}\n\nIngresa el MOTIVO (Venta, Merma, Error, Duplicado):`;
+                defaultMotivo = "Duplicado";
+                payload = { tipo: "baja_aserrada_por_id", idCode: identifier };
+            } else if (type === 'bulto_duplicado') {
+                const [bulto, dupIndex] = identifier.split(':');
+                fardoNum = bulto;
+                promptMsg = `¿Estás seguro de eliminar una de las copias del Fardo #${fardoNum}?\n\nEsta acción es para corregir un ingreso duplicado y no se puede deshacer.`;
+                defaultMotivo = "Corrección Duplicado";
+                payload = { 
+                    tipo: "baja_duplicado_contenido", 
+                    bulto: bulto,
+                    index: dupIndex // 0-indexed
+                };
+            }
+            
+            const motivo = prompt(promptMsg, defaultMotivo);
+            if (motivo === null || motivo.trim() === "") return;
+
+            Object.assign(payload, { sheetName: "MADERA ASERRADA", targetSheet: "SALIDA MDA", motivo: motivo });
 
             const status = document.getElementById('status');
             status.innerText = "⏳ Procesando baja...";
             status.style.color = "#e67e22";
-            
-            const payload = {
-                tipo: "baja_aserrada",
-                bulto: bulto,
-                sheetName: "MADERA ASERRADA",
-                targetSheet: "SALIDA MDA",
-                motivo: motivo
-            };
 
             fetch(GOOGLE_SCRIPT_URL, { 
                 method: "POST", 
@@ -277,10 +450,10 @@
             })
             .then(data => {
                 if(data.result === "success") {
-                    alert("✅ Bulto #" + bulto + " dado de baja correctamente.");
+                    alert(`✅ Operación completada.`);
                     document.getElementById('resultado').innerHTML = "";
                     document.getElementById('searchBulto').value = "";
-                    cargarInventario(); // Recargar la lista para que desaparezca
+                    cargarInventario(); // Recargar la lista para reflejar el cambio
                 } else {
                     alert("❌ Error al dar de baja: " + (data.error || data.message || "Error desconocido"));
                     status.innerText = "❌ Error en la operación.";
