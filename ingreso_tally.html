@@ -621,7 +621,12 @@
                 let totalPT = 0;
                 let fardosSet = new Set();
                 let sinIDCode = 0;
+                let generatedIDCode = 0;
                 let totalPiezas = 0;
+                
+                // Valores globales para generación de ID
+                const poaGlobal = document.getElementById('poa').value || "SIN-POA";
+                const especieGlobal = document.getElementById('especie').value;
 
                 jsonData.forEach(row => {
                     const fardo = getVal(row, ['fardo', 'bulto', '# fardo', 'no. bulto', 'bundle', 'paquete', 'fardo #']);
@@ -633,15 +638,30 @@
                     const pzs = parseInt(getVal(row, ['piezas', 'pzs', 'pcs', 'count', 'cantidad', 'qty'])) || 0;
                     totalPiezas += pzs;
 
-                    const idCode = getVal(row, ['id code', 'idcode', 'codigo', 'barcode']);
-                    if (!idCode || String(idCode).trim() === "") sinIDCode++;
+                    let idCode = getVal(row, ['id code', 'idcode', 'codigo', 'barcode']);
+                    if (!idCode || String(idCode).trim() === "") {
+                        if (fardo) {
+                            // Generar ID CODE automáticamente si falta
+                            const especieNombre = getVal(row, ['especie', 'species']) || especieGlobal;
+                            const espObj = especiesList.find(e => e.nombre.toLowerCase() === especieNombre.toLowerCase());
+                            const espCode = espObj ? espObj.codigo : "GEN";
+                            const poa = getVal(row, ['poa']) || poaGlobal;
+                            
+                            idCode = `MD-${poa}-${fardo}-${espCode}`;
+                            row['ID CODE'] = idCode; // Guardar en el objeto para uso posterior
+                            generatedIDCode++;
+                        } else {
+                            sinIDCode++;
+                        }
+                    }
                 });
 
                 const resumen = `📊 Resumen de Importación:\n\n` +
                                 `📦 Total Bultos detectados: ${fardosSet.size}\n` +
-                                `� Total Pies Tablares: ${totalPT.toFixed(2)}\n` +
+                                `📏 Total Pies Tablares: ${totalPT.toFixed(2)}\n` +
                                 `🔢 Total Piezas: ${totalPiezas}\n` +
-                                `🆔 Sin ID CODE: ${sinIDCode > 0 ? '❌ ' + sinIDCode + ' filas' : '✅ Todos correctos'}\n\n` +
+                                `🆔 ID Codes: ${generatedIDCode > 0 ? '⚠️ ' + generatedIDCode + ' generados auto' : '✅ Todos presentes'}\n` +
+                                (sinIDCode > 0 ? `❌ ${sinIDCode} filas sin ID ni Fardo (omitidas)\n\n` : `\n`) +
                                 `¿Qué desea hacer?\n\n` +
                                 `[ACEPTAR] -> Cargar en la tabla para revisar (Solo recomendado si es 1 bulto).\n` +
                                 `[CANCELAR] -> Cancelar y no hacer nada.`;
