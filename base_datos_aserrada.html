@@ -269,7 +269,7 @@
         const val = parseFloat(String(v).replace(',', '.'));
         if (isNaN(val)) return v;
         const epsilon = 0.01;
-        if (Math.abs(val - 0.5) < epsilon) return "1/2";
+        if (Math.abs(val - 0.5) < epsilon) return "2/4";
         if (Math.abs(val - 0.75) < epsilon) return "3/4";
         if (Math.abs(val - 1.0) < epsilon) return "4/4";
         if (Math.abs(val - 1.25) < epsilon) return "5/4";
