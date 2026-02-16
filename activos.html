@@ -33,7 +33,6 @@
         /* Estilos de Impresión (Etiqueta 3x2) */
         #printable-area { display: none; }
         @media print {
-            @page { size: 3in 2in; margin: 0; }
             
             /* OCULTAR TODO EL CONTENIDO DE LA APP PARA EVITAR HOJAS EXTRA */
             body * { visibility: hidden; }
@@ -44,13 +43,10 @@
             #printable-area, #printable-area * { visibility: visible; }
             #printable-area { 
                 position: fixed;
-                left: 0; top: 0; 
-                width: 3in; height: 2in; 
-                display: flex !important; 
-                align-items: center; justify-content: center;
+                left: 0; top: 0;
+                width: 100%; height: 100%;
                 background: white;
                 z-index: 9999;
-                overflow: hidden; /* Asegura que nada se salga de las 3x2 */
             }
             .label-container {
                 width: 2.8in; height: 1.8in; /* Margen seguro para evitar cortes */
@@ -216,15 +212,26 @@
 
         // --- COMPONENTE DE ICONO ACTUALIZADO PARA FUNCIONAR CON CDN ---
         const LucideIcon = ({ name, size = 20, className = "" }) => {
-            const iconRef = useRef(null);
-            
-            // Convertir CamelCase a kebab-case
-            const kebabName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+            const containerRef = useRef(null);
 
             useEffect(() => {
+                if (!containerRef.current) return;
+                
+                const kebabName = name.replace(/([a-z0-9])([A-Z])/g, '$1-$2').toLowerCase();
+                
+                // Limpiar y preparar el elemento manualmente para evitar conflictos con React
+                containerRef.current.innerHTML = '';
+                const i = document.createElement('i');
+                i.setAttribute('data-lucide', kebabName);
+                if(className) i.setAttribute('class', className);
+                i.style.width = size + 'px';
+                i.style.height = size + 'px';
+                i.style.display = 'inline-block';
+                containerRef.current.appendChild(i);
+
                 if (typeof lucide !== 'undefined' && lucide.createIcons) {
                     lucide.createIcons({
-                        icons: { [name]: true }, // Intentar activar solo este icono si es posible, o escanear
+                        root: containerRef.current,
                         nameAttr: 'data-lucide',
                         attrs: {
                             class: className,
@@ -232,14 +239,10 @@
                             height: size
                         }
                     });
-                    // Re-scan específico para este elemento si la librería lo permite, 
-                    // o simplemente dejar que createIcons corra en el DOM.
-                    // La versión UMD de lucide busca elementos con data-lucide.
-                    lucide.createIcons();
                 }
             }, [name, size, className]);
 
-            return <i data-lucide={kebabName} className={className} style={{ width: size, height: size, display: 'inline-block' }}></i>;
+            return <span ref={containerRef} style={{ display: 'inline-flex', alignItems: 'center', verticalAlign: 'middle' }}></span>;
         };
 
         // Mapeo de iconos usados
@@ -370,6 +373,7 @@
 
             const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
             const [historySearch, setHistorySearch] = useState('');
+            const [historyData, setHistoryData] = useState([]);
 
             // --- HELPER: Formatear Medidas (Recuperar fracción de fecha ISO) ---
             const formatMeasurement = (val) => {
@@ -452,6 +456,56 @@
                 } catch (error) { console.error(error); } finally { setLoading(false); }
             };
 
+            // --- EFECTO: CALCULAR HISTORIAL ---
+            useEffect(() => {
+                if (isHistoryModalOpen) {
+                    const allEvents = inventory.flatMap(item => {
+                        if (!item.history) return [];
+                        return item.history.split('|')
+                            .filter(h => h.trim())
+                            .map((h, idx) => {
+                                const cleanH = h.trim();
+                                const splitIdx = cleanH.indexOf(': ');
+                                let dateObj = new Date(0);
+                                let dateStr = "---";
+                                let action = cleanH;
+                                
+                                if (splitIdx > -1) {
+                                    dateStr = cleanH.substring(0, splitIdx);
+                                    action = cleanH.substring(splitIdx + 2);
+                                    
+                                    // Intentar parsear fecha para ordenar
+                                    const d = new Date(dateStr);
+                                    if (!isNaN(d)) dateObj = d;
+                                    else {
+                                        // Intento manual DD/MM/YYYY
+                                        const parts = dateStr.split(/[/\s,:]+/);
+                                        if (parts.length >= 3) {
+                                            const day = parseInt(parts[0]);
+                                            const month = parseInt(parts[1]) - 1;
+                                            const year = parseInt(parts[2]);
+                                            if (!isNaN(day)) dateObj = new Date(year, month, day);
+                                            if (parts.length >= 6) dateObj.setHours(parts[3], parts[4], parts[5]);
+                                        }
+                                    }
+                                }
+                                
+                                return { item, dateObj, dateStr, action, fullLog: cleanH, originalIdx: idx };
+                            });
+                    });
+
+                    const filtered = allEvents.filter(e => e.fullLog.toUpperCase().includes(historySearch));
+                    
+                    // ORDENAR: Fecha descendente. Si es la misma fecha, usar el índice original (último agregado primero)
+                    filtered.sort((a, b) => {
+                        const timeDiff = b.dateObj - a.dateObj;
+                        if (timeDiff !== 0) return timeDiff;
+                        return b.originalIdx - a.originalIdx;
+                    });
+                    setHistoryData(filtered);
+                }
+            }, [inventory, isHistoryModalOpen, historySearch]);
+
             const isStored = (manager) => manager === 'BODEGA' || BODEGAS_LIST.includes(manager);
 
             // --- LÓGICA DE IMPRESIÓN ---
@@ -480,10 +534,26 @@
                 } catch (error) { console.error("Error imprimiendo:", error); }
             };
 
+            const injectPrintStyles = (size) => {
+                let style = document.getElementById('dynamic-print-style');
+                if (!style) {
+                    style = document.createElement('style');
+                    style.id = 'dynamic-print-style';
+                    document.head.appendChild(style);
+                }
+                style.innerHTML = `@media print { @page { size: ${size}; margin: 0.1in; } }`;
+            };
+
             const printLabelPC = (items) => {
                 const container = document.getElementById('printable-area');
                 if(!container) return;
+                injectPrintStyles('3in 2in'); // Configurar tamaño etiqueta
                 container.innerHTML = ''; // Limpiar área de impresión
+                
+                // Estilo específico para centrar etiquetas en el contenedor fijo
+                container.style.display = 'flex';
+                container.style.alignItems = 'center';
+                container.style.justifyContent = 'center';
 
                 // Convertir a array si es un solo ítem
                 const list = Array.isArray(items) ? items : [items];
@@ -516,6 +586,51 @@
                 setTimeout(() => window.print(), 300);
             };
 
+            const printHistoryReport = () => {
+                const container = document.getElementById('printable-area');
+                if(!container) return;
+                injectPrintStyles('letter'); // Configurar tamaño Carta
+                
+                // Resetear estilos de contenedor para reporte (flujo normal)
+                container.style.display = 'block';
+                container.style.alignItems = 'initial';
+                container.style.justifyContent = 'initial';
+
+                let html = `
+                    <div style="font-family: Arial, sans-serif; padding: 20px; width: 100%; color: black;">
+                        <div style="text-align: center; margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px;">
+                            <h1 style="margin: 0; font-size: 18pt; font-weight: bold;">HISTORIAL DE MOVIMIENTOS</h1>
+                            <p style="margin: 5px 0; font-size: 12pt;">Filtro: ${historySearch || 'TODOS'}</p>
+                            <p style="margin: 0; font-size: 10pt;">Fecha: ${new Date().toLocaleString()}</p>
+                        </div>
+                        <table style="width: 100%; border-collapse: collapse; font-size: 9pt;">
+                            <thead>
+                                <tr style="background-color: #f0f0f0; font-weight: bold;">
+                                    <th style="border: 1px solid #000; padding: 6px; text-align: left; width: 120px;">FECHA</th>
+                                    <th style="border: 1px solid #000; padding: 6px; text-align: left;">ACTIVO</th>
+                                    <th style="border: 1px solid #000; padding: 6px; text-align: left;">DETALLE MOVIMIENTO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                `;
+                
+                historyData.forEach(e => {
+                    html += `
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 6px;">${e.dateStr}</td>
+                            <td style="border: 1px solid #000; padding: 6px;">
+                                <b>${e.item.inventoryNum}</b><br>
+                                ${e.item.description}
+                            </td>
+                            <td style="border: 1px solid #000; padding: 6px;">${e.action}</td>
+                        </tr>`;
+                });
+                
+                html += `</tbody></table></div>`;
+                container.innerHTML = html;
+                setTimeout(() => window.print(), 300);
+            };
+
             // --- LÓGICA DE NEGOCIO ---
             const handleSearch = (e) => {
                 const term = e.target.value.toUpperCase();
@@ -534,7 +649,7 @@
             const openAssetControl = (asset) => {
                 setActiveAsset(asset);
                 setIsEditing(false);
-                setActionForm({ person: '', area: '', quantity: asset.quantity, notes: '', returnStatus: 'Activo', stockToAdd: 1 });
+                setActionForm({ person: '', area: '', quantity: asset.quantity, notes: '', returnStatus: 'Activo', stockToAdd: 1, transferWarehouse: '' });
             };
 
             const handleCreate = async (e) => {
@@ -685,7 +800,7 @@
                     
                     if (qtyToMove <= 0 || qtyToMove > asset.quantity) continue; // Saltar inválidos
 
-                    const moveLog = `${now}: DESPACHO MASIVO ${qtyToMove} UNID. A ${targetManager} |`;
+                    const moveLog = `${now}: ENTREGADO ${qtyToMove} UNID. A ${targetManager} |`;
 
                     // Lógica de movimiento (similar a handleMovement pero simplificada para asignación)
                     if (qtyToMove < asset.quantity) {
@@ -765,6 +880,13 @@
                     targetStatus = activeAsset.status;
                     targetDateMalEstado = activeAsset.dateMalEstado;
                     moveLog = `${now}: ENTREGADO ${qtyToMove} UNID. A ${targetManager} |`;
+                } else if (type === 'TRANSFER') {
+                    targetManager = 'BODEGA';
+                    targetArea = 'ALMACENAMIENTO';
+                    targetWarehouse = actionForm.transferWarehouse;
+                    targetStatus = activeAsset.status;
+                    targetDateMalEstado = activeAsset.dateMalEstado;
+                    moveLog = `${now}: TRASLADO DE ${qtyToMove} UNID. A ${targetWarehouse} |`;
                 } else { 
                     targetManager = 'BODEGA';
                     targetArea = 'ALMACENAMIENTO';
@@ -1082,8 +1204,7 @@
                                                                 <div className="flex items-center gap-2">
                                                                     <Warehouse size={16} className="text-slate-400" />
                                                                     <div>
-                                                                        <div className="font-black text-slate-600 text-[11px] uppercase">EN BODEGA</div>
-                                                                        <div className="text-[9px] text-slate-500 font-bold uppercase">{item.warehouse}</div>
+                                                                        <div className="font-black text-slate-600 text-[11px] uppercase">{item.warehouse}</div>
                                                                     </div>
                                                                 </div>
                                                             ) : (
@@ -1257,6 +1378,35 @@
                                                         </button>
                                                     </div>
                                                     
+                                                    <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 mt-2">
+                                                        <h4 className="text-orange-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowRightLeft size={16}/> Traslado de Bodega</h4>
+                                                        <div className="flex gap-2 mb-2">
+                                                            <input 
+                                                                type="number" 
+                                                                min="1" 
+                                                                max={activeAsset.quantity}
+                                                                className="w-20 bg-white border border-orange-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-orange-500"
+                                                                value={actionForm.quantity}
+                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
+                                                            />
+                                                            <select 
+                                                                className="flex-1 bg-white border border-orange-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-orange-500"
+                                                                value={actionForm.transferWarehouse}
+                                                                onChange={e => setActionForm({...actionForm, transferWarehouse: e.target.value})} 
+                                                            >
+                                                                <option value="">SELECCIONAR DESTINO...</option>
+                                                                {BODEGAS_LIST.filter(b => b !== activeAsset.warehouse).map(b => <option key={b} value={b}>{b}</option>)}
+                                                            </select>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => handleMovement('TRANSFER')}
+                                                            disabled={!actionForm.transferWarehouse}
+                                                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-200"
+                                                        >
+                                                            Confirmar Traslado
+                                                        </button>
+                                                    </div>
+
                                                     <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-2">
                                                         <h4 className="text-green-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><Plus size={16}/> Reponer Stock</h4>
                                                         <div className="flex gap-2">
@@ -1432,6 +1582,9 @@
                                         <h2 className="text-xl font-black text-white flex items-center gap-3">
                                             <History className="text-blue-400"/> Historial de Asignaciones
                                         </h2>
+                                        <button onClick={printHistoryReport} className="ml-auto mr-4 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
+                                            <Printer size={16}/> Imprimir Reporte
+                                        </button>
                                         <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-white"><X/></button>
                                     </div>
                                     
@@ -1453,32 +1606,31 @@
                                         {historySearch ? (
                                             <div className="space-y-4">
                                                 {(() => {
-                                                    const personItems = inventory.filter(i => i.manager.includes(historySearch) && !isStored(i.manager));
-                                                    if (personItems.length === 0) return <div className="text-center text-slate-400 py-10 font-bold">No se encontraron activos asignados actualmente a "{historySearch}"</div>;
+                                                    // Usamos historyData que ya está calculado y ordenado en el useEffect
+                                                    const filteredEvents = historyData;
+
+                                                    if (filteredEvents.length === 0) return <div className="text-center text-slate-400 py-10 font-bold">No se encontraron movimientos para "{historySearch}"</div>;
                                                     
                                                     return (
                                                         <table className="w-full text-left border-collapse">
                                                             <thead>
                                                                 <tr className="text-[10px] font-black text-slate-500 uppercase border-b border-gray-200">
-                                                                    <th className="py-3 pl-2">Activo</th>
-                                                                    <th className="py-3">Descripción</th>
-                                                                    <th className="py-3">Fecha Entrega</th>
-                                                                    <th className="py-3 text-center">Cant.</th>
+                                                                    <th className="py-3 pl-2 w-32">Fecha</th>
+                                                                    <th className="py-3 w-1/3">Activo</th>
+                                                                    <th className="py-3">Detalle Movimiento</th>
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="text-xs font-bold text-slate-700">
-                                                                {personItems.map(item => (
-                                                                    <tr key={item.id} className="border-b border-gray-100 hover:bg-blue-50">
-                                                                        <td className="py-3 pl-2 text-blue-600 font-mono">{item.inventoryNum}</td>
+                                                                {filteredEvents.map((e, i) => (
+                                                                    <tr key={i} className="border-b border-gray-100 hover:bg-blue-50">
+                                                                        <td className="py-3 pl-2 text-slate-500 font-mono">{e.dateStr}</td>
                                                                         <td className="py-3">
-                                                                            <div className="uppercase">{item.description}</div>
-                                                                            <div className="text-[10px] text-slate-400 uppercase">{item.brand} {item.measurement}</div>
+                                                                            <div className="text-blue-600 font-mono">{e.item.inventoryNum}</div>
+                                                                            <div className="uppercase">{e.item.description}</div>
+                                                                            <div className="text-[10px] text-slate-400 uppercase">{e.item.brand} {e.item.measurement}</div>
                                                                         </td>
                                                                         <td className="py-3">
-                                                                            {item.dateEntrega || <span className="text-slate-300 italic">No registrada</span>}
-                                                                        </td>
-                                                                        <td className="py-3 text-center">
-                                                                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">{item.quantity}</span>
+                                                                            <div className="uppercase">{e.action}</div>
                                                                         </td>
                                                                     </tr>
                                                                 ))}
