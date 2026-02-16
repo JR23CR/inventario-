@@ -1,0 +1,460 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Suma de Facturas PDF</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Configuración del worker para PDF.js (Necesario para que funcione via CDN)
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 2rem;
+            background-color: #b1bd90; /* Nuevo color de fondo */
+        }
+        input[type="file"], button { margin: 1rem 0; padding: 0.5rem; }
+        table { border-collapse: collapse; width: 100%; font-size: 14px; background-color: white; }
+        th, td { border: 1px solid #ccc; padding: 0.4rem; text-align: left; }
+        tfoot td { font-weight: bold; background-color: #eee; }
+        .action-buttons { margin-top: 1rem; }
+        
+        /* Estilos del Modal */
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4); }
+        .modal-content { background-color: #fefefe; margin: 10% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 600px; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .close { color: #aaa; float: right; font-size: 28px; font-weight: bold; cursor: pointer; }
+        .close:hover, .close:focus { color: black; text-decoration: none; cursor: pointer; }
+        .text-preview { white-space: pre-wrap; background: #f4f4f4; padding: 10px; border: 1px solid #ddd; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; margin-top: 10px; }
+        .btn-view { background: none; border: none; cursor: pointer; font-size: 1.2rem; padding: 0 5px; }
+    </style>
+</head>
+<body>
+
+    <h2>Subí varias facturas PDF</h2>
+    <input type="file" id="fileInput" accept="application/pdf" multiple>
+
+    <div class="action-buttons">
+        <button id="exportCheckedBtn">Exportar Seleccionadas a Excel (CSV)</button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th><input type="checkbox" id="selectAllCheckbox"></th> <th>#</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Serie</th>
+                <th>No. DTE</th>
+                <th>NIT Emisor</th>
+                <th>Proveedor</th>
+                <th>Descripción</th>
+                <th>Total (Q)</th>
+            </tr>
+        </thead>
+        <tbody id="facturaLista"></tbody>
+        <tfoot>
+            <tr>
+                <td colspan="8">Gran Total</td>
+                <td id="granTotal">Q 0.00</td>
+            </tr>
+        </tfoot>
+    </table>
+
+    <!-- Modal para ver contenido -->
+    <div id="descModal" class="modal">
+      <div class="modal-content">
+        <span class="close">&times;</span>
+        <h3>Contenido de la Factura</h3>
+        <p style="font-weight: bold; margin-top: 10px;">Descripción Detectada:</p>
+        <div id="modalDesc" class="text-preview" style="background: #e8f5e9; border-color: #c8e6c9; max-height: 400px;"></div>
+      </div>
+    </div>
+
+    <script>
+        let totalAcumulado = 0;
+        let contador = 0;
+        let facturasCargadas = []; // Almacenar los datos de todas las facturas cargadas
+
+        // Mapeo de abreviaturas de mes a números (para parsear fechas)
+        const monthMap = {
+            'ene': '01', 'feb': '02', 'mar': '03', 'abr': '04', 'may': '05', 'jun': '06',
+            'jul': '07', 'ago': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dic': '12'
+        };
+
+        // Función para formatear y parsear la fecha
+        function formatAndParseDate(dateStr) {
+            if (!dateStr || dateStr === "No encontrada") {
+                return { displayFecha: "No encontrada", sortableDate: null };
+            }
+
+            // Ejemplo: "03-jul-2025 10:18:29"
+            const parts = dateStr.match(/(\d{2})-(\w{3})-(\d{4})\s*(\d{2}:\d{2}:\d{2})/i);
+            if (!parts) {
+                return { displayFecha: "No encontrada", sortableDate: null };
+            }
+
+            const day = parts[1];
+            const monthAbbr = parts[2].toLowerCase();
+            const year = parts[3];
+            const time = parts[4];
+
+            const monthNum = monthMap[monthAbbr];
+            if (!monthNum) {
+                return { displayFecha: "No encontrada", sortableDate: null };
+            }
+
+            const displayFecha = `${day}/${monthNum}/${year}`;
+            // Crear una fecha para ordenar (YYYY-MM-DDTHH:MM:SS)
+            const sortableDate = new Date(`${year}-${monthNum}-${day}T${time}`);
+
+            return { displayFecha, sortableDate };
+        }
+
+        // Define una constante para frases que NO deben ser parte del nombre del proveedor.
+        const EXCLUDE_FROM_PROVEEDOR = [
+            "NÚMERO DE AUTORIZACIÓN:",
+            "Número de Autorización:",
+            "Número de DTE:",
+            "Fecha y hora de emision:",
+            "Nit Emisor:",
+            "NIT Emisor:",
+            "Serie:",
+            "Moneda:"
+        ];
+
+        document.getElementById('fileInput').addEventListener('change', function(e) {
+            const archivos = e.target.files;
+            if (!archivos.length) return;
+
+            // Limpiar la tabla y reiniciar totales y datos de facturas para nuevas cargas
+            document.getElementById('facturaLista').innerHTML = '';
+            document.getElementById('granTotal').textContent = 'Q 0.00';
+            totalAcumulado = 0;
+            contador = 0;
+            facturasCargadas = [];
+            document.getElementById('selectAllCheckbox').checked = false; // Desmarcar seleccionar todo
+
+            const fileProcessingPromises = Array.from(archivos).map(archivo => {
+                return new Promise(resolve => {
+                    if (archivo.type !== 'application/pdf') {
+                        resolve(null); // Ignorar archivos que no son PDF
+                        return;
+                    }
+
+                    const reader = new FileReader();
+                    reader.onload = function() {
+                        const typedarray = new Uint8Array(this.result);
+                        pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                            let pageTextPromises = [];
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                                pageTextPromises.push(pdf.getPage(i).then(page =>
+                                    page.getTextContent().then(textContent =>
+                                        textContent.items.map(item => item.str).join(' ')
+                                    )
+                                ));
+                            }
+                            return Promise.all(pageTextPromises);
+                        }).then(pagesText => {
+                            const fullText = pagesText.join(' ').replace(/\s+/g, ' ');
+
+                            // 1. Tipo de Factura
+                            const tipoMatch = fullText.match(/Factura/i);
+                            const tipo = tipoMatch ? tipoMatch[0].trim() : "Desconocido";
+
+                            // 2. Proveedor
+                            let proveedor = "No encontrado";
+                            const pequenoContribuyenteMatch = fullText.match(/Pequeño Contribuyente 1\s*(.*?)(?:\s*NÚMERO DE AUTORIZACIÓN:|\s*Serie:|\s*Número de DTE:|\s*Fecha y hora de emision:|\s*Nit Emisor:|$)/i);
+                            if (pequenoContribuyenteMatch && pequenoContribuyenteMatch[1]) {
+                                proveedor = pequenoContribuyenteMatch[1].trim();
+                            } else {
+                                const facturaprovedorMatch = fullText.match(/Factura\s*([\s\S]*?)(?:Nit Emisor:|NIT Receptor:|\d+\s+CALLE|\d+\s+AVENIDA|\s*Dirección\s*comprador:)/i);
+                                if (facturaprovedorMatch && facturaprovedorMatch[1]) {
+                                    let potentialProveedor = facturaprovedorMatch[1].trim();
+                                    if (potentialProveedor) {
+                                        for (const excludePhrase of EXCLUDE_FROM_PROVEEDOR) {
+                                            potentialProveedor = potentialProveedor.replace(new RegExp(excludePhrase.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi'), '').trim();
+                                        }
+                                        const lines = potentialProveedor.split(/[\r\n]+/);
+                                        for (const line of lines) {
+                                            const trimmedLine = line.trim();
+                                            if (trimmedLine !== "" && trimmedLine.length > 3) {
+                                                proveedor = trimmedLine;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+                                if (proveedor === "No encontrado" && fullText.includes("MEFESGUA")) {
+                                    proveedor = "MEFESGUA";
+                                }
+                                if (proveedor === "No encontrado" && fullText.includes("MERCADO FERRETERO SUPER GUATEMALA, SOCIEDAD ANONIMA")) {
+                                    proveedor = "MERCADO FERRETERO SUPER GUATEMALA, SOCIEDAD ANONIMA";
+                                }
+                            }
+                            for (const excludePhrase of EXCLUDE_FROM_PROVEEDOR) {
+                                proveedor = proveedor.replace(new RegExp(excludePhrase.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&'), 'gi'), '').trim();
+                            }
+                            proveedor = proveedor.replace(/\s+/g, ' ').trim();
+
+                            // Limpieza final del nombre del proveedor
+                            // 1. Eliminar un "1" al principio si existe
+                            proveedor = proveedor.replace(/^1\s*/, '').trim();
+                            // 2. Eliminar todas las comas
+                            proveedor = proveedor.replace(/,/g, '').trim();
+                            // 3. Eliminar tildes
+                            proveedor = proveedor.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+
+                            // 3. Fecha (extracción de la cadena original y luego formateo)
+                            const rawFechaStr = (fullText.match(/Fecha y hora de emision:\s*([0-9a-zA-Z\-\: ]+)/i) || [])[1]?.trim() || "No encontrada";
+                            const { displayFecha, sortableDate } = formatAndParseDate(rawFechaStr);
+
+                            // 4. Serie
+                            const serie = (fullText.match(/Serie:\s*([A-Z0-9\-]+)/i) || [])[1] || "No encontrada";
+
+                            // 5. DTE
+                            const dte = (fullText.match(/Número de DTE:\s*(\d+)/i) || [])[1] || "No encontrado";
+
+                            // 6. NIT Emisor
+                            const nit = (fullText.match(/Nit Emisor:\s*([A-Z0-9]+)/i) || [])[1] || "No encontrado";
+
+                            // 7. Total
+                            let totalValor = 0;
+                            let totalFound = false;
+
+                            let matchIVA = fullText.match(/TOTALES:\s*[\d.,]+\s*([\d.,]+)\s*IVA/i);
+                            if (matchIVA && matchIVA[1]) {
+                                totalValor = parseFloat(matchIVA[1].replace(",", ""));
+                                totalFound = true;
+                            } else {
+                                let matchTotal = fullText.match(/TOTALES:\s*((?:[\d.,]+\s*){1,})/i);
+                                if (matchTotal) {
+                                    const numeros = matchTotal[1].trim().split(/\s+/);
+                                    let lastNumberStr = numeros.pop();
+                                    lastNumberStr = lastNumberStr.replace(/IVA|Total/i, '').replace(",", "").trim();
+                                    if (!isNaN(parseFloat(lastNumberStr))) {
+                                        totalValor = parseFloat(lastNumberStr);
+                                        totalFound = true;
+                                    }
+                                }
+                            }
+                            if (isNaN(totalValor)) {
+                                totalValor = 0;
+                            }
+
+                            // 8. Extracción de Descripción (Heurística mejorada)
+                            let descripcionAuto = "";
+                            
+                            // Estrategia 1: Buscar patrón específico de FEL (#No ... TOTALES:)
+                            const matchNo = fullText.match(/#No\s*([\s\S]*?)TOTALES:/i);
+                            if (matchNo) {
+                                let rawSection = matchNo[1];
+                                rawSection = rawSection.replace(/B\/S|Cantidad|Descripcion|P\.\s*Unitario|con\s*IVA|Descuentos|Total|Impuestos|\(Q\)/gi, " ");
+                                rawSection = rawSection.replace(/\b(Bien|Servicio)\b/gi, " ");
+                                rawSection = rawSection.replace(/[\d,]+\.\d+/g, " "); // Decimales
+                                rawSection = rawSection.replace(/\bIVA\b/g, " ");
+                                rawSection = rawSection.replace(/\b\d{1,2}\b/g, " "); // Enteros pequeños (cantidades)
+                                descripcionAuto = rawSection.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s\-\.\,\(\)\/]/g, " ").trim().replace(/\s+/g, " ");
+                            } else {
+                                // Estrategia 2: Fallback genérico
+                                const matchDesc = fullText.match(/(?:Descripción|Concepto|Detalle)(?:[\s\S]*?)(?:Subtotal|Total|Totales|Son:|Nota:|Sujeto)/i);
+                                if (matchDesc) {
+                                    let rawDesc = matchDesc[0].replace(/Descripción|Concepto|Detalle|Subtotal|Total|Totales|Son:|Nota:|Sujeto|Cantidad|Precio|Unitario|Monto|Descuento/gi, " ");
+                                    descripcionAuto = rawDesc.replace(/[^a-zA-ZáéíóúÁÉÍÓÚñÑ0-9\s]/g, " ").trim().replace(/\s+/g, " ");
+                                }
+                            }
+                            
+                            if(descripcionAuto.length > 150) descripcionAuto = descripcionAuto.substring(0, 150) + "...";
+
+                            // Almacenar los datos de la factura en el array
+                            contador++; // Contador para el ID único
+                            const facturaData = {
+                                originalId: contador, // Un ID único para la factura
+                                displayFecha: displayFecha,
+                                sortableDate: sortableDate, // La fecha para ordenar
+                                tipo: tipo,
+                                serie: serie,
+                                dte: dte,
+                                nitEmisor: nit,
+                                proveedor: proveedor,
+                                description: "", // Campo manual vacío por defecto
+                                detectedDescription: descripcionAuto, // Guardar detección para el modal
+                                total: totalValor.toFixed(2), // Total ya con punto decimal
+                                isSelected: false, // Estado inicial no seleccionado
+                                fileName: archivo.name, // Para advertencias
+                                fullText: fullText, // Guardar texto completo para el modal
+                                totalExtractedSuccessfully: totalFound // Para saber si se encontró un total válido
+                            };
+                            resolve(facturaData); // Resolver la promesa con los datos de la factura
+                        }).catch(error => {
+                            console.error("Error procesando PDF:", archivo.name, error);
+                            resolve(null); // Resolver con null si hay un error
+                        });
+                    };
+                    reader.onerror = () => {
+                        console.error("Error leyendo archivo:", archivo.name);
+                        resolve(null);
+                    };
+                    reader.readAsArrayBuffer(archivo);
+                });
+            });
+
+            // Esperar a que todos los archivos se procesen antes de ordenar y mostrar
+            Promise.all(fileProcessingPromises).then(results => {
+                // Filtrar nulos (archivos no-PDF o errores)
+                facturasCargadas = results.filter(data => data !== null);
+
+                // Ordenar las facturas por fecha (fecha mayor hacia abajo)
+                facturasCargadas.sort((a, b) => {
+                    if (!a.sortableDate && !b.sortableDate) return 0; // Si ambas fechas no son válidas, son iguales
+                    if (!a.sortableDate) return 1; // Las fechas nulas van al final
+                    if (!b.sortableDate) return -1; // Las fechas nulas van al final
+                    return a.sortableDate.getTime() - b.sortableDate.getTime(); // Ascendente por fecha
+                });
+
+                // Limpiar la tabla y recalcular el total acumulado para el orden visual
+                document.getElementById('facturaLista').innerHTML = '';
+                totalAcumulado = 0;
+
+                // Renderizar las filas de la tabla con el nuevo orden
+                facturasCargadas.forEach((factura, index) => {
+                    totalAcumulado += parseFloat(factura.total);
+
+                    const fila = document.createElement('tr');
+                    fila.innerHTML = `
+                        <td><input type="checkbox" class="factura-checkbox" data-id="${factura.originalId}" ${factura.isSelected ? 'checked' : ''}></td>
+                        <td>${index + 1}</td> <td>${factura.displayFecha}</td>
+                        <td>${factura.tipo}</td>
+                        <td>${factura.serie}</td>
+                        <td>${factura.dte}</td>
+                        <td>${factura.nitEmisor}</td>
+                        <td>${factura.proveedor}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 5px;">
+                                <textarea class="desc-input" data-id="${factura.originalId}" placeholder="Descripción..." style="width: 100%; box-sizing: border-box; padding: 4px; height: 60px; resize: vertical; font-family: inherit;">${factura.description}</textarea>
+                                <button class="btn-view" onclick="verContenido(${factura.originalId})" title="Ver descripción completa">👁️</button>
+                            </div>
+                        </td>
+                        <td>Q ${factura.total}</td>
+                    `;
+                    document.getElementById('facturaLista').appendChild(fila);
+
+                    if (!factura.totalExtractedSuccessfully) {
+                        console.warn(`Advertencia: No se pudo extraer un total numérico claro para la factura: ${factura.fileName}. Se mostrará Q 0.00.`);
+                    }
+                });
+
+                document.getElementById('granTotal').textContent = `Q ${totalAcumulado.toFixed(2)}`;
+                // Sincronizar el estado del checkbox "seleccionar todo"
+                if (facturasCargadas.length > 0 && facturasCargadas.every(f => f.isSelected)) {
+                    document.getElementById('selectAllCheckbox').checked = true;
+                } else {
+                    document.getElementById('selectAllCheckbox').checked = false;
+                }
+            });
+        });
+
+        // Manejar la selección/deselección de todas las casillas
+        document.getElementById('selectAllCheckbox').addEventListener('change', function() {
+            const isChecked = this.checked;
+            document.querySelectorAll('.factura-checkbox').forEach(checkbox => {
+                checkbox.checked = isChecked;
+                const facturaId = parseInt(checkbox.dataset.id);
+                const factura = facturasCargadas.find(f => f.originalId === facturaId);
+                if (factura) {
+                    factura.isSelected = isChecked;
+                }
+            });
+        });
+
+        // Manejar la selección/deselección de casillas individuales
+        document.getElementById('facturaLista').addEventListener('change', function(e) {
+            if (e.target.classList.contains('factura-checkbox')) {
+                const facturaId = parseInt(e.target.dataset.id);
+                const factura = facturasCargadas.find(f => f.originalId === facturaId);
+                if (factura) {
+                    factura.isSelected = e.target.checked;
+                }
+
+                // Sincronizar el checkbox "seleccionar todo"
+                const allCheckboxes = document.querySelectorAll('.factura-checkbox');
+                const allChecked = Array.from(allCheckboxes).every(cb => cb.checked);
+                document.getElementById('selectAllCheckbox').checked = allChecked;
+            }
+        });
+
+        // Manejar cambios en la descripción (guardar lo que escribas)
+        document.getElementById('facturaLista').addEventListener('input', function(e) {
+            if (e.target.classList.contains('desc-input')) {
+                const facturaId = parseInt(e.target.dataset.id);
+                const factura = facturasCargadas.find(f => f.originalId === facturaId);
+                if (factura) {
+                    factura.description = e.target.value;
+                }
+            }
+        });
+
+        // Función para exportar a CSV
+        document.getElementById('exportCheckedBtn').addEventListener('click', function() {
+            const facturasSeleccionadas = facturasCargadas.filter(f => f.isSelected);
+
+            if (facturasSeleccionadas.length === 0) {
+                alert("Por favor, selecciona al menos una factura para exportar.");
+                return;
+            }
+
+            // Encabezados del CSV
+            const headers = ["ID", "Fecha", "Tipo", "Serie", "No. DTE", "NIT Emisor", "Proveedor", "Descripción", "Total (Q)"];
+            let csvContent = headers.join(";") + "\n"; // Usamos punto y coma como separador
+
+            // Filas de datos
+            facturasSeleccionadas.forEach((factura, index) => { // Usamos el índice para el ID en el CSV
+                const row = [
+                    index + 1, // Nuevo ID secuencial para el CSV exportado
+                    `"${factura.displayFecha}"`,
+                    `"${factura.tipo}"`,
+                    `"${factura.serie}"`,
+                    `"${factura.dte}"`,
+                    `"${factura.nitEmisor}"`,
+                    `"${factura.proveedor}"`,
+                    `"${factura.description}"`, // Incluir la descripción en el CSV
+                    factura.total // Total ya tiene punto decimal
+                ];
+                csvContent += row.join(";") + "\n";
+            });
+
+            // Crear y descargar el archivo CSV
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', 'facturas_seleccionadas.csv');
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url); // Liberar el objeto URL
+            } else {
+                alert("Tu navegador no soporta la descarga directa de archivos. Por favor, copia el contenido del CSV manualmente.");
+            }
+        });
+
+        // Lógica del Modal
+        const modal = document.getElementById("descModal");
+        const span = document.getElementsByClassName("close")[0];
+        span.onclick = function() { modal.style.display = "none"; }
+        window.onclick = function(event) { if (event.target == modal) modal.style.display = "none"; }
+
+        window.verContenido = function(id) {
+            const factura = facturasCargadas.find(f => f.originalId === id);
+            if (factura) {
+                document.getElementById("modalDesc").textContent = factura.detectedDescription;
+                modal.style.display = "block";
+            }
+        };
+    </script>
+
+</body>
+</html>
