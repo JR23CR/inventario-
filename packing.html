@@ -141,6 +141,10 @@
 
         function formatThickness(v) {
             if (!v) return "";
+            // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
+            if (typeof v === 'string' && v.includes('/') && !v.includes('T')) {
+                return v;
+            }
             if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
                 const d = new Date(v);
                 return `${d.getDate()}/${d.getMonth() + 1}`;

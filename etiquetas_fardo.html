@@ -315,6 +315,10 @@
 
     function formatearGrosor(valor) {
         if (!valor) return "";
+        // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
+        if (typeof valor === 'string' && valor.includes('/') && !valor.includes('T')) {
+            return valor;
+        }
         if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
             const fecha = new Date(valor);
             return `${fecha.getDate()}/${fecha.getMonth() + 1}`;

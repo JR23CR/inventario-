@@ -145,6 +145,10 @@
 
     function formatearGrosor(valor) {
         if (!valor) return "";
+        // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
+        if (typeof valor === 'string' && valor.includes('/') && !valor.includes('T')) {
+            return valor;
+        }
         // Corrección específica para Grosores que Sheets convirtió en fecha (ej: 3/4 -> 03/04/2026)
         if (typeof valor === 'string' && valor.includes('T') && !isNaN(Date.parse(valor))) {
             const fecha = new Date(valor);
