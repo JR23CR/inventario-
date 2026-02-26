@@ -285,7 +285,6 @@
                         </div>
                     </div>
 
-
                 </div>
 
                 <!-- CONTENEDOR IFRAME (Para cargar módulos externos) -->
@@ -545,6 +544,7 @@
                     document.getElementById('total-deck').innerText = totalDeckML.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ml";
                     document.getElementById('total-zocalo').innerText = totalZocaloML.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ml";
                     document.getElementById('total-aserrada').innerText = totalPiesTablares.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " PT";
+
                 })
                 .catch(error => {
                     console.error("Error cargando datos del dashboard:", error);

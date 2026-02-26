@@ -267,7 +267,7 @@
         const producto = info['Producto'] || info['Calidad'] || '---';
         const especie = info['Especie'] || '---';
         const grosor = formatearGrosor(info['Grosor "'] || info['Grosor'] || '');
-        const ancho = info['Ancho "'] || info['Ancho'] || '';
+        const ancho = info['Ancho "'] || info['Ancho'] || info['Ancho_In'] || info['ANCHO'] || '';
         const medidas = (grosor && ancho) ? `${grosor}" x ${ancho}"` : 'Varios';
         
         // Detectar si es producto por ML
@@ -290,6 +290,8 @@
             lote: lote,
             producto: producto,
             especie: especie,
+            grosor: grosor,
+            ancho: ancho,
             medidas: medidas,
             fardos: totalFardos,
             piezas: totalPiezas,
@@ -300,7 +302,11 @@
         document.getElementById('printLote').innerText = lote;
         document.getElementById('printProducto').innerText = producto;
         document.getElementById('printEspecie').innerText = especie;
-        document.getElementById('printMedidas').innerText = medidas;
+        if (grosor && ancho) {
+            document.getElementById('printMedidas').innerHTML = `Grosor: ${grosor}"<br>Ancho: ${ancho}"`;
+        } else {
+            document.getElementById('printMedidas').innerText = medidas;
+        }
         document.getElementById('printFardos').innerText = totalFardos;
         document.getElementById('printPiezas').innerText = totalPiezas > 0 ? totalPiezas : "-";
         document.getElementById('printM2').innerText = totalM2.toFixed(2);
@@ -380,7 +386,12 @@
         cmd += `TEXT 380,120,"3",0,4,4,"${d.lote}"\r\n`; 
         cmd += `TEXT 400,280,"3",0,1,1,2,"${d.producto}"\r\n`;
         cmd += `TEXT 400,320,"3",0,1,1,2,"${d.especie}"\r\n`;
-        cmd += `TEXT 400,360,"3",0,1,1,2,"${d.medidas}"\r\n`;
+        if (d.grosor && d.ancho) {
+            cmd += `TEXT 400,355,"3",0,1,1,2,"Grosor: ${d.grosor}"\r\n`;
+            cmd += `TEXT 400,395,"3",0,1,1,2,"Ancho: ${d.ancho}"\r\n`;
+        } else {
+            cmd += `TEXT 400,360,"3",0,1,1,2,"${d.medidas.replace(/"/g, '')}"\r\n`;
+        }
         cmd += `BAR 20,430,760,3\r\n`;
         cmd += `TEXT 130,450,"2",0,1,1,2,"FARDOS"\r\n`;
         cmd += `TEXT 400,450,"2",0,1,1,2,"PIEZAS"\r\n`;
