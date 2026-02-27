@@ -356,6 +356,10 @@
             const statusBadge = item.verificado 
                 ? '<span style="color: #27ae60; font-size: 0.7rem; font-weight: 800;">✅ VERIFICADO</span>' 
                 : '<span style="color: #e74c3c; font-size: 0.7rem; font-weight: 800;">⏳ PENDIENTE</span>';
+            
+            // Guardamos el objeto de forma segura en el elemento
+            tr.dataset.item = JSON.stringify(item);
+
             tr.innerHTML = `
                 <td onclick="event.stopPropagation()">
                     <input type="checkbox" class="fardo-check" value="${item.fardo}" 
@@ -363,18 +367,18 @@
                     ${seleccionados.has(String(item.fardo)) ? 'checked' : ''} 
                     onchange="toggleSeleccion('${item.fardo}')">
                 </td>
-                <td onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
+                <td onclick='abrirModal(JSON.parse(this.parentElement.dataset.item))'>
                     <div class="cell-primary">
                         <span class="fardo-id">#${item.fardo}</span>
                         <span class="especie-sub">${item.especie}</span>
                         ${statusBadge}
                     </div>
                 </td>
-                <td onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
+                <td onclick='abrirModal(JSON.parse(this.parentElement.dataset.item))'>
                     <div class="info-main">${item.calidad}</div>
                     <div class="info-sub">${item.grosor} - ${item.condicion} <br> 📍 ${item.ubicacion}</div>
                 </td>
-                <td style="text-align:right;" onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
+                <td style="text-align:right;" onclick='abrirModal(JSON.parse(this.parentElement.dataset.item))'>
                     <div class="stock-pt">${item.pt.toFixed(2)} PT</div>
                     <div class="info-sub">${item.piezas} Pzs</div>
                 </td>
