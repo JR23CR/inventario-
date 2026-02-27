@@ -165,6 +165,18 @@
             text-align: center; padding: 15px; border-radius: 15px; font-weight: bold;
             margin-top: 10px;
         }
+        /* Barra de acciones masivas */
+        .bulk-actions {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: var(--primary); color: white; padding: 15px 25px;
+            border-radius: 50px; display: none; align-items: center; gap: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3); z-index: 2000;
+            animation: slideUp 0.3s ease;
+        }
+        .btn-bulk {
+            background: #27ae60; border: none; color: white; padding: 8px 15px;
+            border-radius: 10px; font-weight: bold; cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -185,6 +197,7 @@
             <table id="dbTable">
                 <thead>
                     <tr>
+                        <th style="width: 30px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)"></th>
                         <th>Fardo / Especie</th>
                         <th>Detalles</th>
                         <th style="text-align:right;">Stock (Pzs / PT)</th>
@@ -198,6 +211,12 @@
     </div>
 
     <!-- <a href="menu_aserrada.html" class="btn-back" style="margin-top: 10px;">⬅ Volver al Menú Principal</a> -->
+</div>
+
+<!-- Barra Flotante de Acciones -->
+<div id="bulkBar" class="bulk-actions">
+    <span id="bulkCount">0 seleccionados</span>
+    <button class="btn-bulk" onclick="verificarMasivo()">✔️ Verificar Seleccionados</button>
 </div>
 
 <!-- Modal de Detalles y Ubicación -->
@@ -234,6 +253,7 @@
     let currentFardo = null;
     let watchId = null;
     let lastCoords = null;
+    let seleccionados = new Set();
 
     window.onload = function() {
         fetch(GOOGLE_SCRIPT_URL + "?sheet=MADERA ASERRADA")
@@ -332,29 +352,101 @@
 
         lista.forEach(item => {
             const tr = document.createElement('tr');
-            tr.onclick = () => abrirModal(item); // Hacer fila clicable
             tr.style.cursor = "pointer";
             const statusBadge = item.verificado 
                 ? '<span style="color: #27ae60; font-size: 0.7rem; font-weight: 800;">✅ VERIFICADO</span>' 
                 : '<span style="color: #e74c3c; font-size: 0.7rem; font-weight: 800;">⏳ PENDIENTE</span>';
             tr.innerHTML = `
-                <td>
+                <td onclick="event.stopPropagation()">
+                    <input type="checkbox" class="fardo-check" value="${item.fardo}" 
+                    ${item.verificado ? 'disabled' : ''} 
+                    ${seleccionados.has(String(item.fardo)) ? 'checked' : ''} 
+                    onchange="toggleSeleccion('${item.fardo}')">
+                </td>
+                <td onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
                     <div class="cell-primary">
                         <span class="fardo-id">#${item.fardo}</span>
                         <span class="especie-sub">${item.especie}</span>
                         ${statusBadge}
                     </div>
                 </td>
-                <td>
+                <td onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
                     <div class="info-main">${item.calidad}</div>
                     <div class="info-sub">${item.grosor} - ${item.condicion} <br> 📍 ${item.ubicacion}</div>
                 </td>
-                <td style="text-align:right;">
+                <td style="text-align:right;" onclick='abrirModal(${JSON.stringify(item).replace(/'/g, "\\'")})'>
                     <div class="stock-pt">${item.pt.toFixed(2)} PT</div>
                     <div class="info-sub">${item.piezas} Pzs</div>
                 </td>
             `;
             tbody.appendChild(tr);
+        });
+    }
+
+    function toggleSeleccion(fardoId) {
+        fardoId = String(fardoId);
+        if (seleccionados.has(fardoId)) {
+            seleccionados.delete(fardoId);
+        } else {
+            seleccionados.add(fardoId);
+        }
+        actualizarBarraMasiva();
+    }
+
+    function toggleSelectAll(master) {
+        const checks = document.querySelectorAll('.fardo-check:not(:disabled)');
+        checks.forEach(c => {
+            c.checked = master.checked;
+            if (master.checked) seleccionados.add(String(c.value));
+            else seleccionados.delete(String(c.value));
+        });
+        actualizarBarraMasiva();
+    }
+
+    function actualizarBarraMasiva() {
+        const bar = document.getElementById('bulkBar');
+        const count = document.getElementById('bulkCount');
+        if (seleccionados.size > 0) {
+            bar.style.display = 'flex';
+            count.innerText = `${seleccionados.size} seleccionados`;
+        } else {
+            bar.style.display = 'none';
+        }
+    }
+
+    function verificarMasivo() {
+        if (seleccionados.size === 0) return;
+        if (!confirm(`¿Deseas marcar ${seleccionados.size} fardos como VERIFICADOS?`)) return;
+
+        const btn = document.querySelector('.btn-bulk');
+        btn.innerText = "⏳ Procesando...";
+        btn.disabled = true;
+
+        const payload = {
+            tipo: "verificar_fardo",
+            sheetName: "MADERA ASERRADA",
+            fardos: Array.from(seleccionados), // Enviamos el array
+            verificado: "SI"
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.result === "success") {
+                alert(`✅ ${seleccionados.size} fardos verificados con éxito.`);
+                location.reload();
+            } else {
+                throw new Error(data.message);
+            }
+        })
+        .catch(err => {
+            alert("❌ Error: " + err.message);
+            btn.innerText = "✔️ Verificar Seleccionados";
+            btn.disabled = false;
         });
     }
 
