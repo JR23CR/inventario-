@@ -208,6 +208,7 @@
         <div id="modalInfo" style="line-height: 1.6; color: #2c3e50;"></div>
         
         <hr style="border:0; border-top:1px dashed #ccc; margin: 15px 0;">
+        <button id="btnVerify" class="btn-gps" style="background-color: #27ae60; margin-bottom: 15px; display: none;" onclick="verificarFardo()">✔️ Marcar como Verificado</button>
         
         <h4 style="margin:0 0 10px 0; color:#2c3e50;">📍 Actualizar Ubicación</h4>
         <div class="gps-control">
@@ -304,6 +305,7 @@
                     grosor: formatThickness(row['GROSOR'] || ''),
                     condicion: row['CONDICION'] || '',
                     ubicacion: row['UBICACION'] || '',
+                    verificado: (row['VERIFICADO'] || row['Verificado'] || '').toUpperCase() === 'SI',
                     piezas: 0,
                     pt: 0
                 };
@@ -332,11 +334,15 @@
             const tr = document.createElement('tr');
             tr.onclick = () => abrirModal(item); // Hacer fila clicable
             tr.style.cursor = "pointer";
+            const statusBadge = item.verificado 
+                ? '<span style="color: #27ae60; font-size: 0.7rem; font-weight: 800;">✅ VERIFICADO</span>' 
+                : '<span style="color: #e74c3c; font-size: 0.7rem; font-weight: 800;">⏳ PENDIENTE</span>';
             tr.innerHTML = `
                 <td>
                     <div class="cell-primary">
                         <span class="fardo-id">#${item.fardo}</span>
                         <span class="especie-sub">${item.especie}</span>
+                        ${statusBadge}
                     </div>
                 </td>
                 <td>
@@ -381,13 +387,24 @@
     function abrirModal(item) {
         currentFardo = item;
         document.getElementById('modalTitle').innerText = `Fardo #${item.fardo}`;
+        
+        const statusText = item.verificado 
+            ? '<span style="color: #27ae60; font-weight: bold;">✅ ESTE PAQUETE YA ESTÁ VERIFICADO</span>' 
+            : '<span style="color: #e74c3c; font-weight: bold;">⚠️ PENDIENTE DE VERIFICACIÓN</span>';
+
         document.getElementById('modalInfo').innerHTML = `
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 10px; text-align: center; margin-bottom: 15px; border: 1px solid #eee;">
+                ${statusText}
+            </div>
             <b>Especie:</b> ${item.especie}<br>
             <b>Calidad:</b> ${item.calidad}<br>
             <b>Medidas:</b> ${item.grosor} - ${item.condicion}<br>
             <b>Stock:</b> ${item.piezas} Pzs / ${item.pt.toFixed(2)} PT<br>
             <b>Ubicación Actual:</b> ${item.ubicacion || 'No definida'}
         `;
+        
+        // Mostrar botón de verificación solo si no está verificado
+        document.getElementById('btnVerify').style.display = item.verificado ? 'none' : 'block';
         
         // Resetear estado GPS
         detenerGPS();
@@ -465,6 +482,43 @@
         const btn = document.getElementById('btnGPS');
         btn.innerText = "📡 Activar GPS (Test Precisión)";
         btn.style.backgroundColor = "var(--primary)";
+    }
+
+    function verificarFardo() {
+        if (!currentFardo) return;
+        
+        if (!confirm(`¿Deseas marcar el Fardo #${currentFardo.fardo} como VERIFICADO?\nEsto permitirá que aparezca en el resumen del Inicio.`)) return;
+
+        const btn = document.getElementById('btnVerify');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Verificando...";
+        btn.disabled = true;
+
+        const payload = {
+            tipo: "verificar_fardo",
+            sheetName: "MADERA ASERRADA",
+            fardo: currentFardo.fardo,
+            verificado: "SI"
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.result === "success") {
+                alert(`✅ Fardo #${currentFardo.fardo} verificado con éxito.`);
+                location.reload(); 
+            } else {
+                throw new Error(data.message || "Error en el servidor.");
+            }
+        })
+        .catch(err => {
+            alert("❌ Error al verificar: " + err.message);
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
     }
 
     function guardarUbicacion() {

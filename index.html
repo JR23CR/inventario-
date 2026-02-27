@@ -479,7 +479,11 @@
             Promise.all([fetchPTE, fetchMDA])
                 .then(([dataPTE, dataMDA]) => {
                     globalDataPTE = dataPTE; // Guardar datos para filtrado posterior
-                    globalDataMDA = dataMDA; // Guardar datos aserrada
+                    
+                    // Solo mostramos en el Dashboard (Index) los paquetes que ya han sido VERIFICADOS
+                    globalDataMDA = dataMDA.filter(row => {
+                        return (row['VERIFICADO'] || row['Verificado'] || '').toUpperCase() === 'SI';
+                    });
 
                     // Procesar Producto Terminado
                     let totalCrudoM2 = 0;
@@ -532,7 +536,7 @@
 
                     // Procesar Madera Aserrada
                     let totalPiesTablares = 0;
-                    dataMDA.forEach(row => {
+                    globalDataMDA.forEach(row => {
                         const pt = getNum(row, ['PIES TABLARES', 'Pies Tablares', 'PT', 'pt']);
                         totalPiesTablares += pt;
                     });
