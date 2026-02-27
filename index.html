@@ -730,7 +730,7 @@
                 // Obtener especies únicas y sus totales
                 const speciesMap = {};
                 globalDataMDA.forEach(row => {
-                    const esp = row['ESPECIE'] || 'Desconocida';
+                    const esp = (row['ESPECIE'] || row['Especie'] || 'Desconocida').toUpperCase();
                     const cond = (row['CONDICION'] || row['Condicion'] || '').toUpperCase();
                     let ptVal = row['PIES TABLARES'] || row['PT'] || 0;
                     if (typeof ptVal === 'string') ptVal = ptVal.replace(/,/g, '');
@@ -889,7 +889,7 @@
                     return '';
                 };
 
-                const esp = getVal(['Especie', 'ESPECIE', 'especie']) || 'Sin Especie';
+                const esp = (getVal(['Especie', 'ESPECIE', 'especie']) || 'Sin Especie').toUpperCase();
                 const grosor = formatThickness(getVal(['Grosor "', 'Grosor', 'GROSOR', 'grosor']));
                 const ancho = formatWidth(getVal(['Ancho "', 'Ancho', 'ANCHO', 'ancho']));
                 const dimKey = `${grosor} x ${ancho}`;
@@ -1259,8 +1259,8 @@
 
             // 1. Filtrar Datos por Especie
             const filteredData = globalDataMDA.filter(row => {
-                const esp = String(getVal(row, ['ESPECIE', 'Especie']) || '').trim().toLowerCase();
-                return esp === String(speciesName).trim().toLowerCase();
+                const esp = String(getVal(row, ['ESPECIE', 'Especie']) || '').trim().toUpperCase();
+                return esp === String(speciesName).trim().toUpperCase();
             });
 
             // 2. Estructura de Datos Pivot

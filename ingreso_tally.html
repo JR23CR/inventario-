@@ -492,7 +492,7 @@
             fecha: document.getElementById('fecha').value,
             poa: poa,
             bulto: bulto,
-            especie: especieNombre,
+            especie: especieNombre.toUpperCase(),
             calidad: document.getElementById('calidad').value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
             espesor: document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text,
             espesorVal: parseFloat(document.getElementById('espesor').value),
@@ -726,7 +726,7 @@
             if (!bultoId) return;
 
             if (!bultosMap[bultoId]) {
-                const especieNombre = getVal(row, ['especie', 'species']) || document.getElementById('especie').value;
+                const especieNombre = (getVal(row, ['especie', 'species']) || document.getElementById('especie').value).toUpperCase();
                 let calidadNombre = getVal(row, ['calidad', 'quality', 'grade']) || document.getElementById('calidad').value;
                 calidadNombre = String(calidadNombre).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
