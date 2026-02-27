@@ -211,7 +211,7 @@
     <div class="card">
         <div class="grid-3">
             <div>
-                <label>Lote</label>
+                <label>Lote <button onclick="siguienteLote()" style="display:inline; width:auto; padding:2px 6px; margin:0; font-size:0.65rem; background:var(--primary); color:white; border-radius:4px; vertical-align:middle; border:none; cursor:pointer;">SIGUIENTE</button></label>
                 <input type="text" id="loteId" class="compact-input" placeholder="Lote">
             </div>
             <div>
@@ -429,7 +429,10 @@
         });
 
         cargarInventarioRemoto();
-        document.getElementById('loteId').addEventListener('input', actualizarLista);
+        document.getElementById('loteId').addEventListener('input', () => {
+            actualizarLista();
+            actualizarSugerenciasLoteFardo();
+        });
         actualizarLista();
     };
 
@@ -469,11 +472,76 @@
                 }
             });
 
+            // Sugerir el último lote de la nube si no hay uno manual
+            if (!document.getElementById('loteId').value && data.length > 0) {
+                const lotes = data.map(f => parseInt(f['# Lote'])).filter(n => !isNaN(n));
+                if (lotes.length > 0) {
+                    document.getElementById('loteId').value = Math.max(...lotes);
+                }
+            }
+
             actualizarLista();
+            actualizarSugerenciasLoteFardo();
         })
         .catch(error => {
             debug('❌ Error cargando inventario remoto: ' + error.message, 'error');
         });
+    }
+
+    function siguienteLote() {
+        const loteInput = document.getElementById('loteId');
+        const currentLote = parseInt(loteInput.value);
+        if (!isNaN(currentLote)) {
+            loteInput.value = currentLote + 1;
+            actualizarLista();
+            actualizarSugerenciasLoteFardo();
+        }
+    }
+
+    function actualizarSugerenciasLoteFardo() {
+        const loteActual = document.getElementById('loteId').value;
+        if (!loteActual) return;
+
+        // Combinar datos remotos y locales para encontrar el correlativo real y el último registro
+        const fardosRemotos = inventarioRemoto.map(f => ({ lote: String(f['# Lote']), fardo: parseInt(f['# Fardo']), raw: f }));
+        const fardosLocales = fardosData.map(f => ({ lote: String(f.lote), fardo: parseInt(f.fardoNo), raw: f }));
+        const todos = [...fardosRemotos, ...fardosLocales];
+
+        const delLote = todos.filter(f => f.lote === String(loteActual));
+        const fardoInput = document.getElementById('fardoNo');
+        let ultimo;
+
+        if (delLote.length > 0) {
+            // El lote ya tiene fardos registrados: seguimos la secuencia de ese lote
+            const maxFardo = Math.max(...delLote.map(f => f.fardo || 0));
+            fardoInput.value = maxFardo + 1;
+            ultimo = delLote.find(f => f.fardo === maxFardo).raw;
+        } else {
+            // Lote nuevo: seguimos la secuencia GLOBAL y sugerimos datos del último fardo general
+            if (todos.length > 0) {
+                const maxGlobal = Math.max(...todos.map(f => f.fardo || 0));
+                fardoInput.value = maxGlobal + 1;
+                // Buscamos el registro que tiene ese fardo máximo para copiar sus datos
+                ultimo = todos.find(f => f.fardo === maxGlobal).raw;
+            } else {
+                fardoInput.value = 1;
+            }
+        }
+
+        if (ultimo) {
+            const p = ultimo['Producto'] || ultimo.producto;
+            if (p) document.getElementById('producto').value = p;
+            handleProductChange(); // Ajustar visibilidad de calidad
+            
+            const c = ultimo['Calidad'] || ultimo.calidad;
+            if (c) document.getElementById('calidad').value = c;
+            const a = ultimo['Ancho "'] || ultimo['Ancho'] || ultimo.ancho;
+            if (a) document.getElementById('ancho').value = a;
+            const e = ultimo['Especie'] || ultimo.especie;
+            if (e) document.getElementById('especie').value = e;
+            const g = ultimo['Grosor "'] || ultimo['Grosor'] || ultimo.grosor;
+            if (g) document.getElementById('grosor').value = g;
+        }
     }
 
     function renderQuickButtons() {
