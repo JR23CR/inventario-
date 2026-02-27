@@ -204,10 +204,10 @@
             <div style="margin-top: 20px; border-top: 1px solid var(--border); padding-top: 10px;">
                 <label>Rango de Largos</label>
                 <div class="grid-2">
-                    <input type="number" id="largoMin" placeholder="Min" value="3">
-                    <input type="number" id="largoMax" placeholder="Max" value="16">
+                    <input type="number" id="largoMin" placeholder="Min" oninput="generarTabla()">
+                    <input type="number" id="largoMax" placeholder="Max" oninput="generarTabla()">
                 </div>
-                <button class="btn-main" onclick="generarTabla()" style="margin-top: 10px;">Generar Tabla</button>
+                <button class="btn-main" onclick="generarTabla(true)" style="margin-top: 10px;">Generar Tabla</button>
             </div>
         </div>
     </div>
@@ -347,12 +347,16 @@
         document.getElementById('btStatus').innerText = "✅ Conectado: " + device.name;
     }
 
-    function generarTabla() {
-        const largoMin = parseInt(document.getElementById('largoMin').value);
-        const largoMax = parseInt(document.getElementById('largoMax').value);
+    function generarTabla(isManual = false) {
+        let largoMin = parseInt(document.getElementById('largoMin').value);
+        let largoMax = parseInt(document.getElementById('largoMax').value);
+
+        // Si uno está vacío, igualar al otro para permitir un solo largo
+        if (isNaN(largoMin) && !isNaN(largoMax)) largoMin = largoMax;
+        if (isNaN(largoMax) && !isNaN(largoMin)) largoMax = largoMin;
 
         if (isNaN(largoMin) || isNaN(largoMax) || largoMin > largoMax) {
-            alert("Por favor, define un rango de largos válido.");
+            if (isManual) alert("Por favor, define un rango de largos válido.");
             return;
         }
 
@@ -390,7 +394,7 @@
 
             for (let largo = largoMin; largo <= largoMax; largo++) {
                 cell = row.insertCell();
-                cell.innerHTML = `<input type="number" min="0" oninput="calcularTotales()" data-ancho="${ancho}" data-largo="${largo}">`;
+                cell.innerHTML = `<input type="number" min="0" oninput="calcularTotales()" onkeydown="manejarEnter(event, ${ancho}, ${largo})" data-ancho="${ancho}" data-largo="${largo}">`;
             }
             row.insertCell().className = 'total-col';
             row.insertCell().className = 'total-col';
@@ -407,6 +411,18 @@
         footerRow.insertCell().id = 'granTotalPT'; 
         
         calcularTotales(); 
+    }
+
+    function manejarEnter(event, ancho, largo) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            const siguienteAncho = ancho + 1;
+            const nextInput = document.querySelector(`input[data-ancho="${siguienteAncho}"][data-largo="${largo}"]`);
+            if (nextInput) {
+                nextInput.focus();
+                nextInput.select();
+            }
+        }
     }
 
     function calcularTotales() {
