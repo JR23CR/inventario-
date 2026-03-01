@@ -494,7 +494,7 @@
             bulto: bulto,
             especie: especieNombre.toUpperCase(),
             calidad: document.getElementById('calidad').value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
-            espesor: document.getElementById('espesor').options[document.getElementById('espesor').selectedIndex].text,
+            espesor: parseFloat(document.getElementById('espesor').value),
             espesorVal: parseFloat(document.getElementById('espesor').value),
             condicion: document.getElementById('condicion').value,
             ubicacion: document.getElementById('ubicacion').value,

@@ -43,6 +43,7 @@
                     <select id="tipoDocumento" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1 bg-transparent text-slate-700">
                         <option value="cliente">Packing List (Cliente)</option>
                         <option value="despacho">Orden de Despacho</option>
+                        <option value="gerencial">Reporte Gerencial (Especie/Calidad)</option>
                     </select>
                 </div>
                 <div class="space-y-1">
@@ -50,10 +51,29 @@
                     <input type="text" id="fecha" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
                 </div>
                 <div class="space-y-1">
-                    <label class="font-bold text-slate-400 uppercase text-[10px]">Cliente</label>
+                    <label class="font-bold text-slate-400 uppercase text-[10px]">Producto</label>
+                    <input type="text" id="producto" value="Madera Aserrada" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
+                </div>
+                <div class="space-y-1">
+                    <label class="font-bold text-slate-400 uppercase text-[10px]">Especie</label>
+                    <input type="text" id="especie" list="listaEspecies" placeholder="Ej: CAOBA" oninput="this.value = this.value.toUpperCase()" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
+                    <datalist id="listaEspecies"></datalist>
+                </div>
+                <div class="space-y-1">
+                    <label class="font-bold text-slate-400 uppercase text-[10px]">Calidad</label>
+                    <input type="text" id="calidad" list="listaCalidades" placeholder="Ej: COMUN Y MEJOR" oninput="this.value = this.value.toUpperCase()" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
+                    <datalist id="listaCalidades"></datalist>
+                </div>
+                <div class="space-y-1">
+                    <label class="font-bold text-slate-400 uppercase text-[10px]">Grosor</label>
+                    <input type="text" id="headerGrosor" list="listaGrosores" placeholder="Ej: 4/4" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
+                    <datalist id="listaGrosores"></datalist>
+                </div>
+                <div class="space-y-1">
+                    <label class="font-bold text-slate-400 uppercase text-[10px]">Cliente / Nombre</label>
                     <input type="text" id="cliente" placeholder="Nombre del Cliente" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
                 </div>
-                <div class="md:col-span-3 space-y-1">
+                <div class="md:col-span-2 space-y-1">
                     <label class="font-bold text-slate-400 uppercase text-[10px]">Dirección / Destino</label>
                     <input type="text" id="direccion" placeholder="Dirección de entrega" class="w-full font-bold border-b border-gray-200 focus:border-blue-500 outline-none pb-1">
                 </div>
@@ -64,11 +84,11 @@
             <div class="flex gap-4">
                 <div class="relative flex-1">
                     <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400"></i>
-                    <input type="text" id="searchInput" placeholder="Buscar por Fardo, Especie o POA..." 
+                    <input type="text" id="searchInput" placeholder="Filtrar por Fardo específico o POA..." 
                         class="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none">
                 </div>
-                <button onclick="buscarFardos()" class="bg-blue-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-800 transition-all flex items-center gap-2">
-                    BUSCAR
+                <button onclick="cargarInventario()" class="bg-blue-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-800 transition-all flex items-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> ACTUALIZAR
                 </button>
             </div>
             <p id="status" class="text-xs mt-2 text-slate-500"></p>
@@ -88,6 +108,7 @@
                         <th class="p-2 border border-slate-300">Largo</th>
                         <th class="p-2 border border-slate-300">Piezas</th>
                         <th class="p-2 border border-slate-300">PT</th>
+                        <th class="p-2 border border-slate-300">M3</th>
                     </tr>
                 </thead>
                 <tbody id="tableBody" class="font-mono text-slate-700">
@@ -112,9 +133,17 @@
     <script>
         lucide.createIcons();
         const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
+        let inventarioCompleto = [];
         let fardosCargados = [];
 
-        document.getElementById('fecha').value = new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' });
+        window.onload = () => {
+            document.getElementById('fecha').value = new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+            cargarInventario();
+            // Escuchar cambios en los campos del encabezado para filtrar automáticamente
+            ['especie', 'calidad', 'headerGrosor', 'searchInput'].forEach(id => {
+                document.getElementById(id).addEventListener('input', aplicarFiltros);
+            });
+        };
 
         // Helper para obtener valores de forma flexible
         function getVal(row, keys) {
@@ -132,15 +161,15 @@
 
         function formatThickness(v) {
             if (!v) return "";
-            // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
-            if (typeof v === 'string' && v.includes('/') && !v.includes('T')) {
-                return v;
+            // Limpiar espacios y cualquier caracter no numérico/slash al final (ej: "4/4,")
+            let s = String(v).trim().replace(/[^0-9/]+$/g, '');
+            
+            // 1. Si ya es una fracción (ej: "3/4"), la devolvemos tal cual (limpia)
+            if (s.includes('/') && !s.includes('T')) {
+                return s;
             }
-            if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
-                const d = new Date(v);
-                return `${d.getDate()}/${d.getMonth() + 1}`;
-            }
-            const val = parseFloat(String(v).replace(',', '.'));
+
+            const val = parseFloat(s.replace(',', '.'));
             if (!isNaN(val)) {
                 const epsilon = 0.01;
                 if (Math.abs(val - 0.5) < epsilon) return "2/4";
@@ -155,45 +184,137 @@
                 if (Math.abs(val - 2.75) < epsilon) return "11/4";
                 if (Math.abs(val - 3.0) < epsilon) return "12/4";
                 if (Math.abs(val - 4.0) < epsilon) return "16/4";
+                return val.toString();
             }
-            return v;
+            // 2. Solo si no es un número ni fracción manual, revisar si es fecha de Sheets
+            if (s.includes('T') && !isNaN(Date.parse(s))) {
+                const d = new Date(s);
+                return `${d.getDate()}/${d.getMonth() + 1}`;
+            }
+            return s;
         }
 
-        async function buscarFardos() {
-            const input = document.getElementById('searchInput').value;
+        function actualizarDatalists() {
+            const fEspecie = document.getElementById('especie').value.toUpperCase().trim();
+            const fCalidad = document.getElementById('calidad').value.toUpperCase().trim();
+            const fGrosor = document.getElementById('headerGrosor').value.trim();
+
+            const especies = new Set();
+            const calidades = new Set();
+            const grosores = new Set();
+
+            inventarioCompleto.forEach(row => {
+                const rowEspecie = String(getVal(row, ['ESPECIE', 'especie'])).toUpperCase();
+                const rowCalidad = String(getVal(row, ['CALIDAD', 'calidad'])).toUpperCase();
+                const rowGrosor = formatThickness(getVal(row, ['GROSOR', 'grosor']));
+
+                // Para la lista de especies: debe cumplir con Calidad y Grosor actuales
+                let matchEsp = true;
+                if (fCalidad && !rowCalidad.includes(fCalidad)) matchEsp = false;
+                if (fGrosor && !rowGrosor.includes(fGrosor)) matchEsp = false;
+                if (matchEsp && rowEspecie && rowEspecie !== 'UNDEFINED') especies.add(rowEspecie);
+
+                // Para la lista de calidades: debe cumplir con Especie y Grosor actuales
+                let matchCal = true;
+                if (fEspecie && !rowEspecie.includes(fEspecie)) matchCal = false;
+                if (fGrosor && !rowGrosor.includes(fGrosor)) matchCal = false;
+                if (matchCal && rowCalidad && rowCalidad !== 'UNDEFINED') calidades.add(rowCalidad);
+
+                // Para la lista de grosores: debe cumplir con Especie y Calidad actuales
+                let matchGro = true;
+                if (fEspecie && !rowEspecie.includes(fEspecie)) matchGro = false;
+                if (fCalidad && !rowCalidad.includes(fCalidad)) matchGro = false;
+                if (matchGro && rowGrosor && rowGrosor !== 'UNDEFINED') grosores.add(rowGrosor);
+            });
+
+            llenarDatalist('listaEspecies', Array.from(especies).sort());
+            llenarDatalist('listaCalidades', Array.from(calidades).sort());
+            llenarDatalist('listaGrosores', Array.from(grosores).sort());
+        }
+
+        function llenarDatalist(id, items) {
+            const dl = document.getElementById(id);
+            dl.innerHTML = '';
+            items.forEach(item => {
+                const opt = document.createElement('option');
+                opt.value = item;
+                dl.appendChild(opt);
+            });
+        }
+
+        async function cargarInventario() {
             const status = document.getElementById('status');
-            
-            if (!input || !input.trim()) {
-                status.innerText = "⚠️ Ingrese un término de búsqueda.";
-                return;
-            }
-
-            // Permitir búsqueda múltiple separada por comas
-            const searchTerms = input.split(',').map(s => s.trim().toLowerCase()).filter(s => s);
-            const isMultiSearch = searchTerms.length > 1;
-
-            status.innerText = "🔄 Buscando en inventario de Madera Aserrada...";
+            status.innerText = "🔄 Conectando con Base de Datos...";
             try {
                 const res = await fetch(`${SCRIPT_URL}?sheet=MADERA ASERRADA`);
-                const data = await res.json();
+                inventarioCompleto = await res.json();
+                actualizarDatalists();
+                status.innerText = "✅ Datos listos. Use los campos de arriba para filtrar.";
+                aplicarFiltros();
+            } catch (e) {
+                console.error(e);
+                status.innerText = "❌ Error al conectar con la base de datos.";
+            }
+        }
+
+        function aplicarFiltros() {
+            const fEspecie = document.getElementById('especie').value.toLowerCase().trim();
+            const fCalidad = document.getElementById('calidad').value.toLowerCase().trim();
+            const fGrosor = document.getElementById('headerGrosor').value.toLowerCase().trim();
+            const fSearch = document.getElementById('searchInput').value.toLowerCase().trim();
+            const status = document.getElementById('status');
+
+            // Actualizar las listas de sugerencias basadas en los otros filtros seleccionados
+            actualizarDatalists();
+
+            if (!fEspecie && !fCalidad && !fGrosor && !fSearch) {
+                fardosCargados = [];
+                renderTabla();
+                status.innerText = "💡 Ingrese Especie, Calidad o Grosor para ver resultados.";
+                return;
+            }
                 
-                // 1. Filtrar
-                const filtrados = data.filter(row => {
-                    const fardo = String(getVal(row, ['FARDO', 'fardo', 'bulto'])).toLowerCase();
-                    const especie = String(getVal(row, ['ESPECIE', 'especie'])).toLowerCase();
-                    const poa = String(getVal(row, ['POA', 'poa'])).toLowerCase();
-                    const calidad = String(getVal(row, ['CALIDAD', 'calidad'])).toLowerCase();
-                    
-                    return searchTerms.some(term => {
-                        // Si hay múltiples términos (lista de IDs), usamos coincidencia exacta para el Fardo
-                        // para evitar que "896" traiga "2896". Si es uno solo, mantenemos búsqueda parcial.
-                        const matchFardo = isMultiSearch ? fardo === term : fardo.includes(term);
-                        return matchFardo || especie.includes(term) || poa.includes(term) || calidad.includes(term);
-                    }
-                    );
+                // 1. Filtrar solo fardos verificados primero
+                const verificados = inventarioCompleto.filter(row => {
+                    const statusVerificado = String(getVal(row, ['VERIFICADO', 'Verificado'])).toUpperCase().trim();
+                    return statusVerificado === 'SI';
                 });
 
-                // 2. Agrupar por Fardo (Resumen)
+                const filtrados = verificados.filter(row => {
+                    const rowEspecie = String(getVal(row, ['ESPECIE', 'especie'])).toLowerCase().trim();
+                    const rowCalidad = String(getVal(row, ['CALIDAD', 'calidad'])).toLowerCase().trim();
+                    const rawGrosor = String(getVal(row, ['GROSOR', 'grosor'])).toLowerCase().trim();
+                    const rowGrosorFmt = formatThickness(rawGrosor).toLowerCase().trim();
+                    const rowFardo = String(getVal(row, ['FARDO', 'fardo', 'bulto'])).toLowerCase().trim();
+                    const rowPoa = String(getVal(row, ['POA', 'poa'])).toLowerCase().trim();
+
+                    // Filtros de encabezado (AND entre campos, OR dentro de cada campo si hay comas)
+                    if (fEspecie) {
+                        const especieTerms = fEspecie.split(',').map(s => s.trim()).filter(s => s);
+                        if (!especieTerms.some(term => rowEspecie === term)) return false;
+                    }
+                    if (fCalidad) {
+                        const calidadTerms = fCalidad.split(',').map(s => s.trim()).filter(s => s);
+                        if (!calidadTerms.some(term => rowCalidad === term)) return false;
+                    }
+                    if (fGrosor) {
+                        const grosorTerms = fGrosor.split(',').map(s => s.trim()).filter(s => s);
+                        if (!grosorTerms.some(term => rowGrosorFmt === term)) return false;
+                    }
+                    
+                    // Filtro de búsqueda (Fardo o POA)
+                    if (fSearch) {
+                        const searchTerms = fSearch.split(',').map(s => s.trim()).filter(s => s);
+                        const matchSearch = searchTerms.some(term => 
+                            rowFardo === term || rowFardo.includes(term) || rowPoa.includes(term)
+                        );
+                        if (!matchSearch) return false;
+                    }
+
+                    return true;
+                });
+
+                // 2. Agrupar por Fardo
                 const agrupados = {};
                 filtrados.forEach(row => {
                     const fardoId = getVal(row, ['FARDO', 'fardo', 'bulto']);
@@ -202,9 +323,9 @@
                     if (!agrupados[fardoId]) {
                         agrupados[fardoId] = {
                             FARDO: fardoId,
-                            ESPECIE: getVal(row, ['ESPECIE', 'especie']),
-                            CALIDAD: getVal(row, ['CALIDAD', 'calidad']),
-                            CONDICION: getVal(row, ['CONDICION', 'condicion']),
+                            ESPECIE: String(getVal(row, ['ESPECIE', 'especie'])).toUpperCase(),
+                            CALIDAD: String(getVal(row, ['CALIDAD', 'calidad'])).toUpperCase(),
+                            CONDICION: String(getVal(row, ['CONDICION', 'condicion'])).toUpperCase(),
                             GROSOR: getVal(row, ['GROSOR', 'grosor']),
                             ANCHO: getVal(row, ['ANCHO', 'ancho']),
                             largos: new Set(),
@@ -225,6 +346,7 @@
                  fardosCargados = Object.values(agrupados).map(f => {
                     const ls = Array.from(f.largos).sort((a, b) => a - b);
                     f.LARGO = ls.length > 1 ? `${ls[0]}-${ls[ls.length - 1]}` : (ls[0] || "");
+                    f.M3 = Math.round(f.PT) / 424;
                     return f;
                 });
 
@@ -237,15 +359,9 @@
 
                 renderTabla();
                 
-                if (fardosCargados.length > 0) {
-                    status.innerText = `✅ Se encontraron ${fardosCargados.length} fardos (resumidos).`;
-                } else {
-                    status.innerText = `⚠️ No se encontraron resultados para "${input}".`;
-                }
-            } catch (e) {
-                console.error(e);
-                status.innerText = "❌ Error al conectar con la base de datos.";
-            }
+                status.innerText = fardosCargados.length > 0 
+                    ? `✅ Mostrando ${fardosCargados.length} fardos filtrados.` 
+                    : "⚠️ No hay coincidencias con los filtros actuales.";
         }
 
         function renderTabla() {
@@ -254,13 +370,14 @@
 
             fardosCargados.forEach((f, index) => {
                 const fardoId = getVal(f, ['FARDO', 'fardo']);
-                const especie = getVal(f, ['ESPECIE', 'especie']);
-                const calidad = getVal(f, ['CALIDAD', 'calidad']);
-                const condicion = getVal(f, ['CONDICION', 'condicion']);
+                const especie = String(getVal(f, ['ESPECIE', 'especie'])).toUpperCase();
+                const calidad = String(getVal(f, ['CALIDAD', 'calidad'])).toUpperCase();
+                const condicion = String(getVal(f, ['CONDICION', 'condicion'])).toUpperCase();
                 const grosor = formatThickness(getVal(f, ['GROSOR', 'grosor']));
                 const largo = getVal(f, ['LARGO', 'largo']);
                 const piezas = parseInt(getVal(f, ['PIEZAS', 'piezas'])) || 0;
                 const pt = parseFloat(getVal(f, ['PIES TABLARES', 'pt', 'PT'])) || 0;
+                const m3 = Math.round(pt) / 424;
 
                 const row = document.createElement('tr');
                 row.className = "border-b border-gray-100 hover:bg-blue-50 transition-colors";
@@ -274,8 +391,8 @@
                     <td class="p-2 border">${grosor}</td>
                     <td class="p-2 border">${largo}'</td>
                     <td class="p-2 border">${piezas}</td>
-                    <td class="p-2 border font-bold">
-                    ${Math.round(pt)}</td>
+                    <td class="p-2 border font-bold">${Math.round(pt)}</td>
+                    <td class="p-2 border">${m3.toFixed(2)}</td>
                 `;
                 body.appendChild(row);
             });
@@ -303,6 +420,8 @@
                 tPT += Math.round(pt);
             });
 
+            const tM3 = tPT / 424;
+
             const foot = document.getElementById('tableFoot');
             foot.innerHTML = `
                 <tr class="text-slate-900 uppercase text-[11px]">
@@ -311,6 +430,7 @@
                     <td colspan="6" class="p-3 border text-right font-black text-slate-500">TOTALES:</td>
                     <td class="p-3 border font-black bg-blue-50">${tPiezas}</td>
                     <td class="p-3 border font-black bg-blue-100 text-blue-900 text-sm">${tPT}</td>
+                    <td class="p-3 border font-black bg-blue-50">${tM3.toFixed(2)}</td>
                 </tr>
             `;
         }
@@ -425,7 +545,7 @@
                     extension: 'png',
                 });
                 worksheet.addImage(imageId, {
-                    tl: { col: 0, row: 1 },
+                    tl: { col: 0, row: 0 },
                     ext: { width: 160, height: 80 }, // Tamaño fijo para evitar deformación
                     editAs: 'absolute'
                 });
@@ -438,10 +558,25 @@
             worksheet.getCell('A6').value = "Fecha: " + document.getElementById('fecha').value;
             worksheet.getCell('A6').font = metaStyle;
 
-            if (tipoDoc === 'cliente') {
-                worksheet.getCell('A7').value = "Cliente: " + document.getElementById('cliente').value;
-                worksheet.getCell('A8').value = "Dirección: " + document.getElementById('direccion').value;
-                ['A7', 'A8'].forEach(c => worksheet.getCell(c).font = metaStyle);
+            if (tipoDoc === 'cliente' || tipoDoc === 'gerencial') {
+                if (tipoDoc === 'gerencial') {
+                    worksheet.getCell('A5').value = "Producto: " + document.getElementById('producto').value;
+                    worksheet.getCell('A5').font = metaStyle;
+                    worksheet.getCell('A6').value = "Especie: " + document.getElementById('especie').value;
+                    worksheet.getCell('A6').font = metaStyle;
+                    worksheet.getCell('A7').value = "Calidad: " + document.getElementById('calidad').value;
+                    worksheet.getCell('A7').font = metaStyle;
+                    worksheet.getCell('A8').value = "Nombre: " + document.getElementById('cliente').value;
+                    worksheet.getCell('A8').font = metaStyle;
+                    worksheet.getCell('A9').value = "Direccion: " + document.getElementById('direccion').value;
+                    worksheet.getCell('A9').font = metaStyle;
+                    worksheet.getCell('A10').value = "Fecha: " + document.getElementById('fecha').value;
+                    worksheet.getCell('A10').font = metaStyle;
+                } else {
+                    worksheet.getCell('A7').value = "Cliente: " + document.getElementById('cliente').value;
+                    worksheet.getCell('A8').value = "Dirección: " + document.getElementById('direccion').value;
+                    ['A7', 'A8'].forEach(c => worksheet.getCell(c).font = metaStyle);
+                }
             } else {
                 // ORDEN DE DESPACHO (B7 a H7 en Grande)
                 worksheet.mergeCells('B7:H7');
@@ -452,8 +587,16 @@
             }
 
             // Encabezados de tabla
-            const headers = ["Item", "Fardo", "Especie", "Calidad", "Condición", "Grosor", "Largo", "Piezas", "PT"];
-            const headerRow = worksheet.getRow(11);
+            let headers, startRow;
+            if (tipoDoc === 'gerencial') {
+                headers = ["#", "Fardo", "Grosor", "Largo", "Piezas", "PT", "M3", "Calidad", "Condición"];
+                startRow = 12;
+            } else {
+                headers = ["Item", "Fardo", "Especie", "Calidad", "Condición", "Grosor", "Largo", "Piezas", "PT", "M3"];
+                startRow = 11;
+            }
+            
+            const headerRow = worksheet.getRow(startRow);
             headerRow.values = headers;
             headerRow.height = 30;
             headerRow.font = { bold: true, color: { argb: 'FF000000' } };
@@ -474,24 +617,43 @@
                 const f = fardosCargados[index];
                 
                 const fardoId = getVal(f, ['FARDO', 'fardo']);
-
                 const piezas = parseInt(getVal(f, ['PIEZAS', 'piezas'])) || 0;
                 const ptRaw = parseFloat(getVal(f, ['PIES TABLARES', 'pt', 'PT'])) || 0;
                 const pt = Math.round(ptRaw);
+                const m3 = pt / 424;
+
                 tPzs += piezas;
                 tPT += pt;
 
-                const row = worksheet.addRow([
-                    1,
-                    fardoId,
-                    getVal(f, ['ESPECIE', 'especie']),
-                    getVal(f, ['CALIDAD', 'calidad']),
-                    getVal(f, ['CONDICION', 'condicion']),
-                    formatThickness(getVal(f, ['GROSOR', 'grosor'])),
-                    getVal(f, ['LARGO', 'largo']),
-                    piezas,
-                    pt
-                ]);
+                let rowData;
+                if (tipoDoc === 'gerencial') {
+                    rowData = [
+                        1,
+                        fardoId,
+                        formatThickness(getVal(f, ['GROSOR', 'grosor'])),
+                        getVal(f, ['LARGO', 'largo']),
+                        piezas,
+                        pt,
+                        parseFloat(m3.toFixed(2)),
+                        String(getVal(f, ['CALIDAD', 'calidad'])).toUpperCase(),
+                        String(getVal(f, ['CONDICION', 'condicion'])).toUpperCase()
+                    ];
+                } else {
+                    rowData = [
+                        1,
+                        fardoId,
+                        String(getVal(f, ['ESPECIE', 'especie'])).toUpperCase(),
+                        String(getVal(f, ['CALIDAD', 'calidad'])).toUpperCase(),
+                        String(getVal(f, ['CONDICION', 'condicion'])).toUpperCase(),
+                        formatThickness(getVal(f, ['GROSOR', 'grosor'])),
+                        getVal(f, ['LARGO', 'largo']),
+                        piezas,
+                        pt,
+                        parseFloat(m3.toFixed(2))
+                    ];
+                }
+
+                const row = worksheet.addRow(rowData);
                 
                 row.eachCell(cell => {
                     cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
@@ -499,8 +661,15 @@
                 });
             });
 
+            const tM3 = tPT / 424;
+
             // Totales
-            const totalRow = worksheet.addRow([checkboxes.length, 'TOTALES', '', '', '', '', '', tPzs, tPT]);
+            let totalRow;
+            if (tipoDoc === 'gerencial') {
+                totalRow = worksheet.addRow([checkboxes.length, '', '', '', tPzs, tPT, parseFloat(tM3.toFixed(2)), '', '']);
+            } else {
+                totalRow = worksheet.addRow([checkboxes.length, 'TOTALES', '', '', '', '', '', tPzs, tPT, parseFloat(tM3.toFixed(2))]);
+            }
             totalRow.font = { bold: true };
             totalRow.eachCell(cell => {
                 cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
@@ -508,11 +677,68 @@
             });
 
             // Ajustar anchos
-            // ["Item", "Fardo", "Especie", "Calidad", "Condición", "Grosor", "Largo", "Piezas", "PT"]
-            const columnWidths = [6, 10, 25, 25, 12, 8, 10, 8, 12];
+            let columnWidths;
+            if (tipoDoc === 'gerencial') {
+                columnWidths = [6, 10, 8, 10, 8, 12, 12, 25, 12];
+            } else {
+                columnWidths = [6, 10, 25, 25, 12, 8, 10, 8, 12, 12];
+            }
             columnWidths.forEach((w, i) => {
                 worksheet.getColumn(i + 1).width = w;
             });
+
+            // --- NUEVA PESTAÑA: TALLYS (DESGLOSE DETALLADO) ---
+            const tallySheet = workbook.addWorksheet('TALLY');
+            const tallyHeaders = ["#Fardo", "Grosor", "Largo", "Ancho", "PT", "Cantidad", "Condición", "CALIDAD", "Especie"];
+            const tallyHeaderRow = tallySheet.getRow(1);
+            tallyHeaderRow.values = tallyHeaders;
+            tallyHeaderRow.font = { bold: true };
+            tallyHeaderRow.eachCell(cell => {
+                cell.alignment = { horizontal: 'center' };
+                cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+            });
+
+            const selectedFardoIds = Array.from(checkboxes).map(cb => {
+                const index = parseInt(cb.dataset.index);
+                return String(getVal(fardosCargados[index], ['FARDO', 'fardo']));
+            });
+
+            // Filtrar las filas originales de inventarioCompleto que pertenecen a los fardos seleccionados
+            const tallyRows = inventarioCompleto.filter(row => {
+                const fId = String(getVal(row, ['FARDO', 'fardo', 'bulto']));
+                return selectedFardoIds.includes(fId);
+            });
+
+            // Ordenar por fardo, luego ancho, luego largo para que sea fácil de leer
+            tallyRows.sort((a, b) => {
+                const fa = parseInt(getVal(a, ['FARDO', 'fardo'])) || 0;
+                const fb = parseInt(getVal(b, ['FARDO', 'fardo'])) || 0;
+                if (fa !== fb) return fa - fb;
+                const aa = parseFloat(getVal(a, ['ANCHO', 'ancho'])) || 0;
+                const ab = parseFloat(getVal(b, ['ANCHO', 'ancho'])) || 0;
+                if (aa !== ab) return aa - ab;
+                return (parseFloat(getVal(a, ['LARGO', 'largo'])) || 0) - (parseFloat(getVal(b, ['LARGO', 'largo'])) || 0);
+            });
+
+            tallyRows.forEach(row => {
+                const r = tallySheet.addRow([
+                    getVal(row, ['FARDO', 'fardo']),
+                    formatThickness(getVal(row, ['GROSOR', 'grosor'])),
+                    getVal(row, ['LARGO', 'largo']),
+                    getVal(row, ['ANCHO', 'ancho']),
+                    parseFloat(getVal(row, ['PIES TABLARES', 'pt', 'PT'])) || 0,
+                    parseInt(getVal(row, ['PIEZAS', 'piezas'])) || 0,
+                    String(getVal(row, ['CONDICION', 'condicion'])).toUpperCase(),
+                    String(getVal(row, ['CALIDAD', 'calidad'])).toUpperCase(),
+                    String(getVal(row, ['ESPECIE', 'especie'])).toUpperCase()
+                ]);
+                r.eachCell(cell => {
+                    cell.border = { top: {style:'thin'}, left: {style:'thin'}, bottom: {style:'thin'}, right: {style:'thin'} };
+                    cell.alignment = { horizontal: 'center' };
+                });
+            });
+
+            tallySheet.columns.forEach(col => { col.width = 15; });
 
             const buffer = await workbook.xlsx.writeBuffer();
             saveAs(new Blob([buffer]), `Packing_Aserrada_${document.getElementById('cliente').value || 'Cliente'}.xlsx`);

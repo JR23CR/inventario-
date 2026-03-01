@@ -842,18 +842,15 @@
             // Helper para corregir fechas y convertir decimales a fracciones (Grosor)
             const formatThickness = (v) => {
                 if (!v) return "";
-                // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
-                if (typeof v === 'string' && v.includes('/') && !v.includes('T')) {
-                    return v;
+                // Limpiar espacios y cualquier caracter no numérico/slash al final (ej: "4/4,")
+                let s = String(v).trim().replace(/[^0-9/]+$/g, '');
+
+                // 1. Si ya es una fracción, devolver limpia
+                if (s.includes('/') && !s.includes('T')) {
+                    return s;
                 }
 
-                if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
-                    const d = new Date(v);
-                    return `${d.getDate()}/${d.getMonth() + 1}`;
-                }
-
-                // Reemplazar coma por punto para asegurar parseo correcto
-                let val = parseFloat(String(v).replace(',', '.'));
+                let val = parseFloat(s.replace(',', '.'));
                 if (!isNaN(val)) {
                     const epsilon = 0.01;
                     if (Math.abs(val - 0.5) < epsilon) return "2/4";
@@ -862,15 +859,20 @@
                     if (Math.abs(val - 1.25) < epsilon) return "5/4";
                     if (Math.abs(val - 1.5) < epsilon) return "6/4";
                     if (Math.abs(val - 1.75) < epsilon) return "7/4";
-                    if (Math.abs(val - 1.75) < epsilon) return "7/4";
                     if (Math.abs(val - 2.0) < epsilon) return "8/4";
                     if (Math.abs(val - 2.25) < epsilon) return "9/4";
                     if (Math.abs(val - 2.5) < epsilon) return "10/4";
                     if (Math.abs(val - 2.75) < epsilon) return "11/4";
                     if (Math.abs(val - 3.0) < epsilon) return "12/4";
                     if (Math.abs(val - 4.0) < epsilon) return "16/4";
+                    return val.toString();
                 }
-                return v;
+                
+                if (s.includes('T') && !isNaN(Date.parse(s))) {
+                    const d = new Date(s);
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                }
+                return s;
             };
             
             // Helper para anchos (solo corrección de fecha)
@@ -1298,7 +1300,6 @@
                         if (Math.abs(val - 1.0) < epsilon) return "4/4";
                         if (Math.abs(val - 1.25) < epsilon) return "5/4";
                         if (Math.abs(val - 1.5) < epsilon) return "6/4";
-                        if (Math.abs(val - 1.75) < epsilon) return "7/4";
                         if (Math.abs(val - 1.75) < epsilon) return "7/4";
                         if (Math.abs(val - 2.0) < epsilon) return "8/4";
                         if (Math.abs(val - 2.25) < epsilon) return "9/4";

@@ -282,17 +282,16 @@
 
     function formatThickness(v) {
         if (!v) return "";
-        // Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
-        if (typeof v === 'string' && v.includes('/') && !v.includes('T')) {
-            return v;
+        // Limpiar espacios y cualquier caracter no numérico/slash al final (ej: "4/4,")
+        let s = String(v).trim().replace(/[^0-9/]+$/g, '');
+        
+        // 1. Si ya es una fracción (ej: "3/4"), la devolvemos tal cual
+        if (s.includes('/') && !s.includes('T')) {
+            return s;
         }
-        if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
-            const d = new Date(v);
-            return `${d.getDate()}/${d.getMonth() + 1}`;
-        }
-        // Reemplazar coma por punto
-        const val = parseFloat(String(v).replace(',', '.'));
-        if (isNaN(val)) return v;
+
+        const val = parseFloat(s.replace(',', '.'));
+        if (isNaN(val)) return s;
         const epsilon = 0.01;
         if (Math.abs(val - 0.5) < epsilon) return "2/4";
         if (Math.abs(val - 0.75) < epsilon) return "3/4";

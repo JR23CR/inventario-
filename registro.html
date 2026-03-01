@@ -736,7 +736,7 @@
                 fardoNo: fardoNo,
                 producto: producto,
                 calidad: calidad, // Enviamos la calidad
-                grosor: String(grosorStr).includes('/') ? "'" + grosorStr : grosorStr,
+                grosor: grosorVal,
                 ancho: anchoGlobal,
                 especie: document.getElementById('especie').value,
                 piezas: d.piezas,
@@ -763,7 +763,7 @@
 
         const fardoParaHistorial = {
             lote: lote, fardoNo: fardoNo, producto: producto, calidad: calidad,
-            grosor: grosorStr, ancho: anchoGlobal,
+            grosor: grosorVal, ancho: anchoGlobal,
             especie: document.getElementById('especie').value, detalles: [...currentDetalles],
             m2: parseFloat(totalMetrosFardo.toFixed(2)),
             p2: parseFloat(totalP2Fardo.toFixed(2)),
