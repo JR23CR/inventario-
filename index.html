@@ -1367,7 +1367,28 @@
             let grandSumAD = 0;
             let grandSumKD = 0;
 
-            Object.keys(pivot).sort().forEach(calidad => {
+            const ordenCalidad = {
+                "SELECTA Y MEJOR": 1,
+                "COMUN 1": 2,
+                "COMUN 2": 3,
+                "COMUNES": 4,
+                "M-R": 5,
+                "COMUNES GB": 6,
+                "COMUNES G-B": 6,
+                "COMUN B": 7,
+                "COMUN Y MEJOR": 8
+            };
+
+            Object.keys(pivot).sort((a, b) => {
+                const getPeso = (name) => {
+                    const base = name.replace(/\s+(AD|KD)$/i, "").trim().toUpperCase();
+                    return ordenCalidad[base] || 99;
+                };
+                const pesoA = getPeso(a);
+                const pesoB = getPeso(b);
+                if (pesoA !== pesoB) return pesoA - pesoB;
+                return a.localeCompare(b);
+            }).forEach(calidad => {
                 const grosores = pivot[calidad];
                 let calidadTotal = 0;
 
