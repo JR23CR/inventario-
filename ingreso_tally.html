@@ -172,7 +172,7 @@
                 </div>
                 <div>
                     <label>Espesor</label>
-                    <select id="espesor">
+                    <select id="espesor" onchange="calcularTotales()">
                         <option value="1">4/4</option>
                         <option value="1.25">5/4</option>
                         <option value="1.5">6/4</option>
@@ -788,6 +788,28 @@
             return;
         }
         
+        // --- NUEVA LÓGICA PARA MANEJO DE DUPLICADOS ---
+        const fardosDuplicados = bultosArray.filter(f => 
+            inventarioRemoto.some(r => String(r['FARDO']) === String(f.bulto))
+        );
+
+        if (fardosDuplicados.length > 0) {
+            const listaNumeros = fardosDuplicados.map(f => f.bulto).join(", ");
+            const sufijo = prompt(`⚠️ Se detectaron ${fardosDuplicados.length} fardos que ya existen en el sistema:\n\n${listaNumeros}\n\nIngrese la letra o sufijo para agregar al final (ej: A, B, -1) para importarlos como nuevos.\n(Presione Cancelar para omitir estos fardos):`, "A");
+            
+            if (sufijo !== null && sufijo.trim() !== "") {
+                fardosDuplicados.forEach(f => {
+                    const oldBulto = f.bulto;
+                    f.bulto = String(f.bulto) + sufijo.trim().toUpperCase();
+                    // Actualizar el ID CODE si contiene el número de bulto original
+                    if (f.idCode && String(f.idCode).includes(String(oldBulto))) {
+                        f.idCode = String(f.idCode).replace(String(oldBulto), f.bulto);
+                    }
+                });
+            }
+        }
+        // ----------------------------------------------
+
         let guardados = 0;
         let omitidos = 0;
         let errores = [];
