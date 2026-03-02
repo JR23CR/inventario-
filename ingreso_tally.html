@@ -158,7 +158,7 @@
                 </div>
                 <div>
                     <label>No. Bulto</label>
-                    <input type="number" id="bultoNo" placeholder="Ej: 501">
+                    <input type="text" id="bultoNo" placeholder="Ej: 501 o 665A">
                 </div>
             </div>
             <div class="grid-3">
@@ -540,7 +540,11 @@
             const result = await response.json();
             if (result.result === "success") {
                 alert("✅ Tally guardado correctamente en la nube.");
-                document.getElementById('bultoNo').value = parseInt(bulto) + 1;
+                // Solo auto-incrementar si el bulto es puramente numérico
+                const nextBulto = parseInt(bulto);
+                if (!isNaN(nextBulto) && String(nextBulto) === String(bulto).trim()) {
+                    document.getElementById('bultoNo').value = nextBulto + 1;
+                }
                 generarTabla();
                 cargarInventario();
             } else {
