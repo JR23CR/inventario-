@@ -340,6 +340,12 @@
     let selectedPiezas = 1;
     let autoPrint = true;
 
+    // Helper para enviar números con coma a Google Sheets (evita error de fecha con 1.5)
+    const fmtNum = (val) => {
+        if (val === null || val === undefined || val === "") return "";
+        return String(val).replace('.', ',');
+    };
+
     const especiesBase = [
         "Maletio colorado", "Maletio blanco", "Jobillo", "Ramon oreja", "Pucte", 
         "Chaltecoco", "Santa maria", "Cedro", "Pochote", "Cericote", "Manchiche", 
@@ -736,13 +742,13 @@
                 fardoNo: fardoNo,
                 producto: producto,
                 calidad: calidad, // Enviamos la calidad
-                grosor: grosorVal,
-                ancho: anchoGlobal,
+                grosor: fmtNum(grosorVal),
+                ancho: fmtNum(anchoGlobal),
                 especie: document.getElementById('especie').value,
                 piezas: d.piezas,
-                largo: d.largo,
-                m2: parseFloat(m2_linea.toFixed(3)), ml: parseFloat(ml_linea.toFixed(2)),
-                p2: parseFloat(p2_linea.toFixed(2)), m3: parseFloat(m3_linea.toFixed(4)),
+                largo: fmtNum(d.largo),
+                m2: fmtNum(m2_linea.toFixed(3)), ml: fmtNum(ml_linea.toFixed(2)),
+                p2: fmtNum(p2_linea.toFixed(2)), m3: fmtNum(m3_linea.toFixed(4)),
                 unidad: unidad,
                 fecha: fechaSimple
             });

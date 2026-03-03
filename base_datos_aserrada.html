@@ -216,7 +216,8 @@
 <!-- Barra Flotante de Acciones -->
 <div id="bulkBar" class="bulk-actions">
     <span id="bulkCount">0 seleccionados</span>
-    <button class="btn-bulk" onclick="verificarMasivo()">✔️ Verificar Seleccionados</button>
+    <button class="btn-bulk" onclick="verificarMasivo()">✔️ Verificar</button>
+    <button class="btn-bulk" style="background-color: #e67e22;" onclick="pasarAKDMasivo()">🔥 Pasar a KD</button>
 </div>
 
 <!-- Modal de Detalles y Ubicación -->
@@ -361,8 +362,7 @@
 
             tr.innerHTML = `
                 <td onclick="event.stopPropagation()">
-                    <input type="checkbox" class="fardo-check" value="${item.fardo}" 
-                    ${item.verificado ? 'disabled' : ''} 
+                    <input type="checkbox" class="fardo-check" value="${item.fardo}"
                     ${seleccionados.has(String(item.fardo)) ? 'checked' : ''} 
                     onchange="toggleSeleccion('${item.fardo}')">
                 </td>
@@ -397,7 +397,7 @@
     }
 
     function toggleSelectAll(master) {
-        const checks = document.querySelectorAll('.fardo-check:not(:disabled)');
+        const checks = document.querySelectorAll('.fardo-check');
         checks.forEach(c => {
             c.checked = master.checked;
             if (master.checked) seleccionados.add(String(c.value));
@@ -421,7 +421,7 @@
         if (seleccionados.size === 0) return;
         if (!confirm(`¿Deseas marcar ${seleccionados.size} fardos como VERIFICADOS?`)) return;
 
-        const btn = document.querySelector('.btn-bulk');
+        const btn = document.querySelector('button[onclick="verificarMasivo()"]');
         btn.innerText = "⏳ Procesando...";
         btn.disabled = true;
 
@@ -449,6 +449,80 @@
         .catch(err => {
             alert("❌ Error: " + err.message);
             btn.innerText = "✔️ Verificar Seleccionados";
+            btn.disabled = false;
+        });
+    }
+
+    function pasarAKDMasivo() {
+        if (seleccionados.size === 0) return;
+        if (!confirm(`¿Deseas cambiar la condición de ${seleccionados.size} fardos a KD (Secado en Horno)?`)) return;
+
+        const btn = document.querySelector('button[onclick="pasarAKDMasivo()"]');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Procesando...";
+        btn.disabled = true;
+
+        const payload = {
+            tipo: "actualizar_condicion",
+            sheetName: "MADERA ASERRADA",
+            fardos: Array.from(seleccionados),
+            condicion: "K-D"
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.result === "success") {
+                alert(`✅ ${seleccionados.size} fardos actualizados a KD.`);
+                location.reload();
+            } else {
+                throw new Error(data.message);
+            }
+        })
+        .catch(err => {
+            alert("❌ Error: " + err.message);
+            btn.innerText = originalText;
+            btn.disabled = false;
+        });
+    }
+
+    function pasarAKDMasivo() {
+        if (seleccionados.size === 0) return;
+        if (!confirm(`¿Deseas cambiar la condición de ${seleccionados.size} fardos a KD (Secado en Horno)?`)) return;
+
+        const btn = document.querySelector('button[onclick="pasarAKDMasivo()"]');
+        const originalText = btn.innerText;
+        btn.innerText = "⏳ Procesando...";
+        btn.disabled = true;
+
+        const payload = {
+            tipo: "actualizar_condicion",
+            sheetName: "MADERA ASERRADA",
+            fardos: Array.from(seleccionados),
+            condicion: "K-D"
+        };
+
+        fetch(GOOGLE_SCRIPT_URL, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.result === "success") {
+                alert(`✅ ${seleccionados.size} fardos actualizados a KD.`);
+                location.reload();
+            } else {
+                throw new Error(data.message || "El servidor no reconoció el comando.");
+            }
+        })
+        .catch(err => {
+            alert("❌ Error: " + err.message);
+            btn.innerText = originalText;
             btn.disabled = false;
         });
     }

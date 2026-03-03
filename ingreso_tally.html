@@ -239,6 +239,12 @@
     let bluetoothDevice;
     let printCharacteristic;
 
+    // Helper para enviar números con coma a Google Sheets (evita error de fecha con 1.5)
+    const fmtNum = (val) => {
+        if (val === null || val === undefined || val === "") return "";
+        return String(val).replace('.', ',');
+    };
+
     // Helper para obtener valores de un objeto (fila de Excel) de forma insensible a mayúsculas y espacios
     const getVal = (row, keys) => {
         if (!row) return null;
@@ -494,7 +500,7 @@
             bulto: bulto,
             especie: especieNombre.toUpperCase(),
             calidad: document.getElementById('calidad').value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase(),
-            espesor: parseFloat(document.getElementById('espesor').value),
+            espesor: fmtNum(document.getElementById('espesor').value),
             espesorVal: parseFloat(document.getElementById('espesor').value),
             condicion: document.getElementById('condicion').value,
             ubicacion: document.getElementById('ubicacion').value,
@@ -516,7 +522,12 @@
                 if (piezas > 0) {
                     const largo = parseFloat(input.dataset.largo);
                     const pt = (encabezado.espesorVal * ancho * largo / 12) * piezas;
-                    detalles.push({ ancho, largo, piezas, pt: parseFloat(pt.toFixed(2)) });
+                    detalles.push({ 
+                        ancho: fmtNum(ancho), 
+                        largo: fmtNum(largo), 
+                        piezas, 
+                        pt: fmtNum(pt.toFixed(2)) 
+                    });
                 }
             }
         }
@@ -758,7 +769,7 @@
                     especie: especieNombre,
                     calidad: calidadNombre,
                     ca: getVal(row, ['ca']) || obtenerAbreviaturaCA(calidadNombre),
-                    espesor: thicknessTxt,
+                    espesor: fmtNum(thicknessVal),
                     espesorVal: thicknessVal,
                     condicion: getVal(row, ['condicion', 'condition']) || condicionGlobal,
                     ubicacion: getVal(row, ['ubicacion', 'location']) || ubicacionGlobal,
@@ -777,7 +788,12 @@
             if (!isNaN(a) && !isNaN(l) && !isNaN(p)) {
                 const ptExcel = parseFloat(getVal(row, ['pies tablares', 'pt', 'p2', 'board feet', 'pies']));
                 const pt = !isNaN(ptExcel) ? ptExcel : (bultosMap[bultoId].espesorVal * a * l / 12) * p;
-                bultosMap[bultoId].detalles.push({ ancho: a, largo: l, piezas: p, pt: parseFloat(pt.toFixed(2)) });
+                bultosMap[bultoId].detalles.push({ 
+                    ancho: fmtNum(a), 
+                    largo: fmtNum(l), 
+                    piezas: p, 
+                    pt: fmtNum(pt.toFixed(2)) 
+                });
             }
         });
 
