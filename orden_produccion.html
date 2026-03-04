@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orden de Producción - GIBOR S.A.</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        @media print {
+            @page { size: letter landscape; margin: 10mm; }
+            .no-print { display: none !important; }
+            body { background: white; font-family: 'Times New Roman', Times, serif; }
+            .print-container { box-shadow: none; border: none; max-width: 100%; width: 100%; margin: 0; padding: 0; }
+            input, textarea { border: none; background: transparent; resize: none; }
+            /* Forzar estilos de impresión específicos */
+            .print-header { text-align: center; margin-bottom: 2rem; }
+            .print-table th { border-top: 2px solid #111827 !important; border-bottom: 2px solid #111827 !important; color: #111827 !important; }
+            .print-table td { border-bottom: 1px solid #e5e7eb; padding: 12px 8px; vertical-align: top; }
+            .print-table { width: 100%; border-collapse: collapse; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans p-4 md:p-8">
+
+    <div class="w-full max-w-[95%] mx-auto bg-white shadow-2xl rounded-3xl overflow-hidden print-container min-h-screen flex flex-col">
+        
+        <!-- Barra de Herramientas (No imprimir) -->
+        <div class="bg-slate-900 p-4 flex justify-between items-center no-print">
+            <div class="flex items-center gap-3">
+                <h1 class="text-white font-bold text-lg flex items-center gap-2">
+                    <i data-lucide="factory" class="w-6 h-6 text-blue-400"></i> Orden de Producción
+                </h1>
+            </div>
+            <div class="flex gap-2">
+                <button onclick="generarPDF()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
+                    <i data-lucide="file-down" class="w-4 h-4"></i> Descargar PDF
+                </button>
+                <button onclick="toggleHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
+                    <i data-lucide="history" class="w-4 h-4"></i> Historial
+                </button>
+                <button onclick="limpiarFormulario()" class="bg-slate-700 hover:bg-slate-600 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
+                    <i data-lucide="eraser" class="w-4 h-4"></i> Limpiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Contenido Principal (Formato de Impresión) -->
+        <div id="documento" class="p-8 md:p-12 flex-1 bg-white">
+            
+            <!-- Encabezado Profesional GIBOR -->
+            <div class="flex flex-col md:flex-row justify-between items-start mb-12 border-b border-gray-900 pb-8">
+                <div class="flex items-center gap-6">
+                    <img src="logo-giborv2 (2).png" class="h-20 w-auto object-contain" alt="GIBOR S.A." onerror="this.style.display='none'">
+                    <div class="border-l-2 border-gray-900 pl-6 py-1 hidden md:block">
+                        <h2 class="text-3xl font-bold text-gray-900 tracking-tight leading-none">GIBOR, S.A.</h2>
+                        <p class="text-gray-500 text-xs mt-1 font-bold uppercase tracking-wide">
+                            Industria Forestal<br>Petén, Guatemala
+                        </p>
+                    </div>
+                </div>
+
+                <div class="mt-6 md:mt-0 text-right w-full md:w-auto">
+                    <h1 class="text-4xl font-black text-gray-900 uppercase tracking-tighter mb-3">Orden de<br>Producción</h1>
+                    <div class="flex flex-col items-end gap-2">
+                        <div class="flex items-center gap-3 bg-gray-100 px-4 py-1 rounded-md border border-gray-200">
+                            <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">NO.</span>
+                            <input type="text" id="ordenNo" class="text-right font-mono font-bold text-2xl text-gray-900 w-32 bg-transparent outline-none border-none p-0" placeholder="000">
+                        </div>
+                        <div class="flex items-center gap-3 pr-1">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">FECHA EMISIÓN</span>
+                            <input type="text" id="fechaOrden" class="text-right font-bold text-sm text-gray-700 w-48 bg-transparent outline-none border-b border-gray-300 focus:border-gray-900 transition-colors pb-1">
+                        </div>
+                        <div class="flex items-center gap-3 pr-1">
+                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">FECHA ENTREGA</span>
+                            <div class="relative">
+                                <input type="text" id="fechaEntrega" class="text-right font-bold text-sm text-gray-700 w-48 bg-transparent outline-none border-b border-gray-300 focus:border-gray-900 transition-colors pb-1 cursor-pointer" placeholder="Seleccionar fecha" readonly onclick="try{document.getElementById('fechaEntregaPicker').showPicker()}catch(e){}">
+                                <input type="date" id="fechaEntregaPicker" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer no-print z-10" onchange="actualizarFechaEntrega(this)" onclick="try{this.showPicker()}catch(e){}">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Productos -->
+            <div class="overflow-x-auto mb-12">
+                <table class="w-full border-collapse print-table">
+                    <thead>
+                        <tr class="border-y-2 border-gray-900">
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-1/6">Producto</th>
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-1/6">Especie</th>
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-24">Grosor</th>
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-24">Largo</th>
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-24">Ancho</th>
+                            <th class="py-3 px-2 text-center text-xs font-black text-gray-900 uppercase tracking-wider w-24">Cant.</th>
+                            <th class="py-3 px-2 text-left text-xs font-black text-gray-900 uppercase tracking-wider">Observaciones</th>
+                            <th class="py-3 px-1 w-8 no-print border-none"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaCuerpo" class="text-sm text-gray-800 font-medium">
+                        <!-- Fila de Ejemplo Inicial -->
+                        <tr>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">TRANQUILLA</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">MANCHICHE</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">3/4</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">7` a 11` pies</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">1.5 pulgadas</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">660 metros lineales</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-0">
+                                <textarea class="w-full h-full p-2 text-left focus:bg-blue-50 outline-none text-xs" rows="3">empacados con fleje plastico, cepillados en el grosor, no canteados</textarea>
+                            </td>
+                            <td class="border-b border-gray-200 p-1 text-center no-print bg-white border-none">
+                                <button onclick="eliminarFila(this)" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Botón Agregar Fila (No imprimir) -->
+            <div class="mt-4 text-center no-print">
+                <button onclick="agregarFila()" class="bg-slate-100 hover:bg-slate-200 text-slate-600 px-4 py-2 rounded-full text-sm font-bold border border-slate-300 transition-all flex items-center gap-2 mx-auto">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Agregar Línea
+                </button>
+            </div>
+
+            <!-- Firmas -->
+            <div class="mt-auto pt-10 border-t border-gray-100 no-print">
+                <div class="grid grid-cols-2 gap-20">
+                    <div class="text-center">
+                        <div class="h-16 border-b border-gray-900 w-2/3 mx-auto mb-2"></div>
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Firma Solicitante</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="h-16 border-b border-gray-900 w-2/3 mx-auto mb-2"></div>
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Autorizado Gerencia</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Firmas (Solo Impresión - para asegurar posición al final) -->
+            <div class="hidden print:block mt-auto pt-10">
+                <div class="grid grid-cols-2 gap-20">
+                    <div class="text-center">
+                        <div class="h-16 border-b border-gray-900 w-2/3 mx-auto mb-2"></div>
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Firma Solicitante</p>
+                    </div>
+                    <div class="text-center">
+                        <div class="h-16 border-b border-gray-900 w-2/3 mx-auto mb-2"></div>
+                        <p class="text-xs font-bold text-gray-500 uppercase tracking-widest">Autorizado Gerencia</p>
+                    </div>
+                </div>
+                <div class="text-center mt-8 text-[10px] text-gray-400 uppercase">
+                    GIBOR, S.A. - Sistema de Control de Producción
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Modal Historial (No imprimir) -->
+    <div id="historyModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50 no-print backdrop-blur-sm">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl p-6 max-h-[80vh] flex flex-col m-4">
+            <div class="flex justify-between items-center mb-4 border-b pb-4">
+                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="history"></i> Historial de Órdenes</h2>
+                <button onclick="toggleHistory()" class="text-slate-400 hover:text-red-500 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
+            </div>
+            <div class="overflow-y-auto flex-1 custom-scrollbar">
+                <table class="w-full text-sm text-left border-collapse">
+                    <thead class="bg-slate-50 text-slate-500 font-bold uppercase text-xs sticky top-0">
+                        <tr>
+                            <th class="p-3 rounded-tl-lg">Orden #</th>
+                            <th class="p-3">Fecha</th>
+                            <th class="p-3">Detalles</th>
+                            <th class="p-3 text-right rounded-tr-lg">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyList" class="divide-y divide-slate-100 text-slate-700"></tbody>
+                </table>
+                <div id="emptyHistory" class="hidden text-center py-10 text-slate-400">
+                    <i data-lucide="inbox" class="w-12 h-12 mx-auto mb-2 opacity-50"></i>
+                    <p>No hay órdenes guardadas aún.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        // Establecer fecha actual por defecto en formato largo en español
+        const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById('fechaOrden').value = new Date().toLocaleDateString('es-ES', opcionesFecha);
+        cargarCorrelativo(); // Cargar número correlativo al iniciar
+
+        function agregarFila(datos = null) {
+            const tbody = document.getElementById('tablaCuerpo');
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.producto : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.especie : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.grosor : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.largo : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.ancho : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-center focus:bg-blue-50 outline-none" rows="3">${datos ? datos.ml : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-0">
+                    <textarea class="w-full h-full p-2 text-left focus:bg-blue-50 outline-none text-xs" rows="3">${datos ? datos.obs : ''}</textarea>
+                </td>
+                <td class="border-b border-gray-200 p-1 text-center no-print bg-white border-none">
+                    <button onclick="eliminarFila(this)" class="text-red-500 hover:text-red-700"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                </td>
+            `;
+            tbody.appendChild(row);
+            lucide.createIcons();
+        }
+
+        function eliminarFila(btn) {
+            if(confirm("¿Eliminar esta fila?")) {
+                const row = btn.closest('tr');
+                row.remove();
+            }
+        }
+
+        function limpiarFormulario() {
+            if(confirm("¿Borrar todos los datos del formulario?")) {
+                document.getElementById('tablaCuerpo').innerHTML = '';
+                agregarFila(); // Agregar una fila vacía
+                cargarCorrelativo(); // Cargar el siguiente correlativo disponible
+            }
+        }
+
+        function generarPDF() {
+            guardarOrdenLocal(); // Guardar automáticamente al generar PDF
+            actualizarCorrelativoSiguiente(); // Preparar el siguiente número
+
+            const element = document.getElementById('documento');
+            const ordenNo = document.getElementById('ordenNo').value || 'Sin_Numero';
+            
+            // Clonar el elemento para manipularlo sin afectar la vista actual
+            const clone = element.cloneNode(true);
+            
+            // Limpiar elementos no deseados en el PDF
+            const noPrint = clone.querySelectorAll('.no-print');
+            noPrint.forEach(el => el.remove());
+
+            // Reemplazar inputs y textareas con texto estático para mejor renderizado
+            const inputs = clone.querySelectorAll('input, textarea');
+            inputs.forEach(input => {
+                const div = document.createElement('div');
+                div.textContent = input.value;
+                div.style.whiteSpace = 'pre-wrap';
+                div.style.width = '100%';
+                
+                // Preservar alineación
+                if (input.classList.contains('text-center')) div.style.textAlign = 'center';
+                else if (input.classList.contains('text-right')) div.style.textAlign = 'right';
+                else div.style.textAlign = 'left';
+
+                // Estilos específicos para encabezados vs tabla
+                if (input.id === 'ordenNo') {
+                    div.style.fontSize = '24px';
+                    div.style.fontWeight = '900';
+                    div.style.textAlign = 'right';
+                    div.style.color = '#111827'; // gray-900
+                } else if (input.id === 'fechaOrden' || input.id === 'fechaEntrega') {
+                    div.style.textAlign = 'right';
+                    div.style.fontSize = '14px';
+                    div.style.fontWeight = '900';
+                } else {
+                    div.style.fontSize = '11px'; // Letra legible en tabla
+                }
+
+                input.parentNode.replaceChild(div, input);
+            });
+
+            const opt = {
+                margin:       0.3,
+                filename:     `Orden_Produccion_${ordenNo}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
+                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
+            };
+
+            html2pdf().set(opt).from(clone).save().then(() => {
+                // Actualizar correlativo en pantalla DESPUÉS de la descarga
+                const next = localStorage.getItem('secuencia_orden_produccion');
+                if(next) document.getElementById('ordenNo').value = next;
+            });
+        }
+
+        // --- LÓGICA DE HISTORIAL ---
+        
+        function guardarOrdenLocal() {
+            const ordenNo = document.getElementById('ordenNo').value;
+            const fecha = document.getElementById('fechaOrden').value;
+            const fechaEntrega = document.getElementById('fechaEntrega').value;
+            const filas = [];
+            
+            document.querySelectorAll('#tablaCuerpo tr').forEach(tr => {
+                const areas = tr.querySelectorAll('textarea');
+                if(areas.length > 0 && (areas[0].value.trim() !== '' || areas[1].value.trim() !== '')) {
+                    filas.push({
+                        producto: areas[0].value,
+                        especie: areas[1].value,
+                        grosor: areas[2].value,
+                        largo: areas[3].value,
+                        ancho: areas[4].value,
+                        ml: areas[5].value,
+                        obs: areas[6].value
+                    });
+                }
+            });
+
+            if(filas.length === 0) return; // No guardar vacíos
+
+            const nuevaOrden = { id: Date.now(), ordenNo, fecha, fechaEntrega, filas };
+            const historial = JSON.parse(localStorage.getItem('historial_ordenes') || '[]');
+            
+            // Evitar duplicados exactos recientes (opcional)
+            const existe = historial.find(h => h.ordenNo === ordenNo && JSON.stringify(h.filas) === JSON.stringify(filas));
+            if (!existe) {
+                historial.unshift(nuevaOrden); // Agregar al principio
+                if(historial.length > 50) historial.pop(); // Mantener solo las últimas 50
+                localStorage.setItem('historial_ordenes', JSON.stringify(historial));
+            }
+        }
+
+        function toggleHistory() {
+            const modal = document.getElementById('historyModal');
+            if (modal.classList.contains('hidden')) {
+                renderHistory();
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            } else {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+        }
+
+        function renderHistory() {
+            const historial = JSON.parse(localStorage.getItem('historial_ordenes') || '[]');
+            const tbody = document.getElementById('historyList');
+            const empty = document.getElementById('emptyHistory');
+            tbody.innerHTML = '';
+
+            if (historial.length === 0) {
+                empty.classList.remove('hidden');
+                return;
+            }
+            empty.classList.add('hidden');
+
+            historial.forEach(orden => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors";
+                tr.innerHTML = `
+                    <td class="p-3 font-bold text-blue-600">#${orden.ordenNo}</td>
+                    <td class="p-3 text-slate-500">${orden.fecha}</td>
+                    <td class="p-3 text-xs">${orden.filas.length} productos (${orden.filas[0].producto}...)</td>
+                    <td class="p-3 text-right">
+                        <button onclick='cargarOrden(${JSON.stringify(orden).replace(/'/g, "&apos;")})' class="bg-blue-100 text-blue-600 hover:bg-blue-200 p-2 rounded-lg transition-colors mr-2" title="Cargar"><i data-lucide="upload" class="w-4 h-4"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+            lucide.createIcons();
+        }
+
+        function cargarOrden(orden) {
+            if(!confirm("¿Cargar esta orden? Se reemplazarán los datos actuales.")) return;
+            
+            document.getElementById('ordenNo').value = orden.ordenNo;
+            document.getElementById('fechaOrden').value = orden.fecha;
+            document.getElementById('fechaEntrega').value = orden.fechaEntrega || '';
+            document.getElementById('tablaCuerpo').innerHTML = '';
+            
+            orden.filas.forEach(fila => agregarFila(fila));
+            toggleHistory();
+        }
+
+        // --- LÓGICA DE CORRELATIVO ---
+        function cargarCorrelativo() {
+            const guardado = localStorage.getItem('secuencia_orden_produccion');
+            if (guardado) {
+                document.getElementById('ordenNo').value = guardado;
+            } else {
+                const year = new Date().getFullYear();
+                const inicial = `${year}-001`;
+                document.getElementById('ordenNo').value = inicial;
+                localStorage.setItem('secuencia_orden_produccion', inicial);
+            }
+        }
+
+        function actualizarCorrelativoSiguiente() {
+            const actual = document.getElementById('ordenNo').value;
+            const match = actual.match(/(\d+)$/); // Buscar último número
+            if (match) {
+                const numeroStr = match[1];
+                const numero = parseInt(numeroStr, 10) + 1;
+                const nuevoNumeroStr = String(numero).padStart(numeroStr.length, '0');
+                const nuevoCorrelativo = actual.substring(0, match.index) + nuevoNumeroStr;
+                localStorage.setItem('secuencia_orden_produccion', nuevoCorrelativo);
+            }
+        }
+
+        function actualizarFechaEntrega(picker) {
+            const fecha = picker.value;
+            if (fecha) {
+                // Crear fecha ajustando la zona horaria para evitar desfases
+                const dateObj = new Date(fecha + 'T00:00:00');
+                const opciones = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+                document.getElementById('fechaEntrega').value = dateObj.toLocaleDateString('es-ES', opciones);
+            }
+        }
+    </script>
+</body>
+</html>
