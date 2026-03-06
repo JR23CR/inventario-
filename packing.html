@@ -81,9 +81,15 @@
                 <button onclick="conectarLectorBT()" class="w-full lg:w-auto bg-white hover:bg-blue-50 text-blue-600 border-2 border-blue-200 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
                     <i data-lucide="bluetooth"></i> CONECTAR LECTOR BT
                 </button>
-                <div class="bg-white px-6 py-3 rounded-xl border border-blue-200 shadow-sm flex items-center gap-4">
-                    <div class="text-blue-900 font-black text-xl" id="checkedCount">0</div>
-                    <div class="text-slate-400 text-[10px] uppercase font-bold leading-tight">Fardos<br>Verificados</div>
+                <div class="bg-white px-4 py-3 rounded-xl border border-blue-200 shadow-sm flex flex-row items-center gap-4">
+                    <div class="flex flex-col border-r border-gray-100 pr-4">
+                        <label class="text-[9px] font-bold text-slate-400 uppercase">Meta M²</label>
+                        <input type="number" id="targetM2" step="0.1" class="w-20 font-black text-blue-600 outline-none text-lg" placeholder="0.00" oninput="actualizarTotales()">
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-blue-900 font-black text-2xl" id="checkedCount">0</div>
+                        <div class="text-slate-400 text-[10px] uppercase font-bold leading-tight">Fardos<br>Verificados</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -311,7 +317,7 @@
                 const row = document.createElement('tr');
                 row.className = `border-b border-gray-100 hover:bg-blue-50 transition-colors ${f.verificado ? 'bg-green-50' : ''}`;
                 row.innerHTML = `
-                    <td class="p-2 border no-print"><input type="checkbox" checked class="w-4 h-4 fardo-check" data-index="${index}"></td>
+                    <td class="p-2 border no-print"><input type="checkbox" ${f.incluido ? 'checked' : ''} class="w-4 h-4 fardo-check" data-index="${index}"></td>
                     <td class="p-2 border no-print">${f.verificado ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-green-600 mx-auto"></i>' : '<i data-lucide="circle" class="w-4 h-4 text-slate-300 mx-auto"></i>'}</td>
                     <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
@@ -342,9 +348,10 @@
         function actualizarTotales() {
             const checkboxes = document.querySelectorAll('.fardo-check:checked');
             let tM2 = 0, tM3 = 0, tP2 = 0, tPL = 0, tML = 0, tPiezas = 0;
-            let verifiedCount = 0;
+            let verifiedM2 = 0;
             let lastFardo = null;
             let packageCount = 0;
+            let verifiedFardosSet = new Set();
             
             const productoInput = document.getElementById('producto').value.toLowerCase();
             
@@ -372,8 +379,6 @@
                     lastFardo = fardoId;
                 }
 
-                if (f.verificado) verifiedCount++;
-
                 const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
                 const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
                 const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
@@ -385,10 +390,34 @@
                 const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
                 const pl = piezas * largo;
 
+                if (f.verificado) {
+                    verifiedFardosSet.add(fardoId);
+                    verifiedM2 += m2;
+                }
+
                 tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml; tPiezas += piezas;
             });
 
-            document.getElementById('checkedCount').innerText = verifiedCount;
+            document.getElementById('checkedCount').innerText = verifiedFardosSet.size;
+
+            // Lógica de Alarma por Meta Alcanzada
+            const target = parseFloat(document.getElementById('targetM2').value) || 0;
+            const statusEl = document.getElementById('status');
+            
+            if (target > 0 && verifiedM2 >= target) {
+                if (!window.targetReached) {
+                    emitirSonido('target');
+                    setTimeout(() => {
+                        alert(`🎯 ¡META ALCANZADA!\n\nVerificado: ${verifiedM2.toFixed(2)} m²\nMeta: ${target.toFixed(2)} m²`);
+                    }, 100);
+                    window.targetReached = true;
+                }
+                statusEl.innerText = `🎯 META ALCANZADA: ${verifiedM2.toFixed(2)} / ${target.toFixed(2)} m²`;
+                statusEl.style.color = "#16a34a"; // Verde
+                statusEl.style.fontWeight = "900";
+            } else {
+                window.targetReached = false;
+            }
 
             const foot = document.getElementById('tableFoot');
             foot.innerHTML = `
@@ -417,6 +446,8 @@
         // Escuchar cambios en checkboxes para recalcular totales
         document.getElementById('tableBody').addEventListener('change', function(e) {
             if(e.target.classList.contains('fardo-check')) {
+                const index = parseInt(e.target.dataset.index);
+                if (fardosCargados[index]) fardosCargados[index].incluido = e.target.checked;
                 actualizarTotales();
             }
         });
@@ -442,6 +473,13 @@
                     gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
                     oscillator.start();
                     oscillator.stop(audioCtx.currentTime + 0.1);
+                } else if (tipo === 'target') {
+                    oscillator.type = 'triangle';
+                    oscillator.frequency.setValueAtTime(523.25, audioCtx.currentTime); // Do5
+                    oscillator.frequency.exponentialRampToValueAtTime(1046.50, audioCtx.currentTime + 0.5); // Do6
+                    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.6);
                 } else {
                     oscillator.type = 'sawtooth'; // Sonido más áspero para error
                     oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Nota grave
@@ -461,21 +499,20 @@
             code = String(code).trim();
             if (!code) return;
             
-            let encontrado = false;
-            fardosCargados.forEach(f => {
-                const fardoId = String(getVal(f, ['Fardo', '# Fardo', 'FARDO'])).trim();
-                if (fardoId === code) {
-                    f.verificado = true;
-                    encontrado = true;
-                }
-            });
+            // Buscar todos los registros que coincidan con el código escaneado
+            const matches = fardosCargados.filter(f => String(getVal(f, ['Fardo', '# Fardo', 'FARDO'])).trim() === code);
 
-            if (encontrado) {
+            if (matches.length > 0) {
+                // Al escanear, marcamos como verificado y nos aseguramos de que esté incluido en el packing list
+                matches.forEach(f => {
+                    f.verificado = true;
+                    f.incluido = true; 
+                });
                 emitirSonido('success');
                 renderTabla();
             } else {
                 emitirSonido('error');
-                alert("⚠️ Fardo #" + code + " no encontrado en la lista actual.");
+                alert("⚠️ ALERTA: El fardo #" + code + " no se encuentra en los lotes cargados actualmente.");
             }
         }
 
