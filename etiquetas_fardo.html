@@ -190,6 +190,16 @@
                 <button class="btn-print-all-pc" onclick="imprimirTodoPC()">🖥️ Todo (PC)</button>
                 <button class="btn-print-all-bt" onclick="imprimirTodoBT()">🖨️ Todo (BT)</button>
             </div>
+
+            <label style="font-size:0.8rem; color:#666; display:block; margin-top:15px; margin-bottom:5px;">Imprimir Rango de Fardos:</label>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+                <input type="number" id="rangeStart" placeholder="Desde #" style="margin-top:0; padding: 8px; font-size: 0.9rem;">
+                <input type="number" id="rangeEnd" placeholder="Hasta #" style="margin-top:0; padding: 8px; font-size: 0.9rem;">
+            </div>
+            <div class="global-actions">
+                <button class="btn-print-all-pc" style="background-color: #00796b;" onclick="imprimirRangoPC()">🖥️ Rango (PC)</button>
+                <button class="btn-print-all-bt" style="background-color: #455a64;" onclick="imprimirRangoBT()">🖨️ Rango (BT)</button>
+            </div>
         </div>
 
         <h3 style="margin-left: 10px; font-size: 1rem; color: #666;">Lista Individual:</h3>
@@ -250,8 +260,9 @@
                 return null;
             };
 
-            const lote = getVal(['# Lote', 'Lote', 'lote']);
-            const fardoNo = getVal(['# Fardo', 'Fardo', 'fardo']);
+            // Limpiamos espacios en blanco que puedan venir de la hoja de cálculo
+            const lote = String(getVal(['# Lote', 'Lote', 'lote']) || '').trim();
+            const fardoNo = String(getVal(['# Fardo', 'Fardo', 'fardo']) || '').trim();
             
             if (!lote || !fardoNo) return;
 
@@ -347,7 +358,8 @@
         const loteBusqueda = document.getElementById('loteInput').value.trim();
         if (!loteBusqueda) return alert("Ingresa un lote");
 
-        fardosDelLote = inventarioAgrupado.filter(f => String(f.lote).toLowerCase() === String(loteBusqueda).toLowerCase());
+        // Filtro más flexible que ignora espacios accidentales
+        fardosDelLote = inventarioAgrupado.filter(f => String(f.lote).trim().toLowerCase() === String(loteBusqueda).toLowerCase());
 
         if (fardosDelLote.length === 0) {
             alert("No se encontraron fardos para el lote: " + loteBusqueda);
@@ -455,6 +467,70 @@
         window.print();
     }
 
+    function imprimirRangoPC() {
+        const start = parseInt(document.getElementById('rangeStart').value);
+        const end = parseInt(document.getElementById('rangeEnd').value);
+
+        if (isNaN(start) || isNaN(end)) return alert("Ingresa un rango válido");
+
+        const filtrados = fardosDelLote.filter(f => {
+            const num = parseInt(String(f.fardoNo).replace(/\D/g, ''));
+            return num >= start && num <= end;
+        });
+
+        if (filtrados.length === 0) return alert("No se encontraron fardos en ese rango.");
+
+        const container = document.getElementById('printable-area');
+        container.innerHTML = ""; 
+        
+        filtrados.forEach(f => {
+            const el = crearElementoEtiqueta(f);
+            container.appendChild(el);
+            new QRCode(el.querySelector('.lbl-qr'), {
+                text: `${f.lote}-${f.fardoNo}`,
+                width: 80, height: 80
+            });
+        });
+        
+        window.print();
+    }
+
+    async function imprimirRangoBT() {
+        const start = parseInt(document.getElementById('rangeStart').value);
+        const end = parseInt(document.getElementById('rangeEnd').value);
+
+        if (isNaN(start) || isNaN(end)) return alert("Ingresa un rango válido");
+
+        const filtrados = fardosDelLote.filter(f => {
+            // Extraemos solo los números por si el fardo tiene letras (ej: 5934A)
+            const num = parseInt(String(f.fardoNo).replace(/\D/g, ''));
+            return num >= start && num <= end;
+        });
+
+        if (filtrados.length === 0) return alert("No se encontraron fardos en ese rango.");
+
+        if (!confirm(`¿Imprimir ${filtrados.length} etiquetas por Bluetooth?`)) return;
+
+        // Asegurar conexión antes de iniciar el ciclo para evitar pérdida de datos iniciales
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) return;
+            await new Promise(r => setTimeout(r, 1000)); // Pausa de seguridad tras conectar
+        }
+
+        for (const fardo of filtrados) {
+            try {
+                const index = fardosDelLote.indexOf(fardo);
+                await imprimirFardoBT(index, true);
+                // Reducimos a 1.5s: suficiente para que el motor termine pero mucho más ágil
+                await new Promise(r => setTimeout(r, 1500)); 
+            } catch (e) {
+                console.error("Error imprimiendo fardo " + fardo.fardoNo, e);
+            }
+        }
+        alert("Impresión finalizada.");
+    }
+
     // ==========================================
     // LÓGICA DE IMPRESIÓN BLUETOOTH (EXTERNA)
     // ==========================================
@@ -504,10 +580,18 @@
     async function imprimirTodoBT() {
         if (!confirm(`¿Imprimir ${fardosDelLote.length} etiquetas por Bluetooth?`)) return;
 
+        // Asegurar conexión antes de iniciar el ciclo
+        if (!printCharacteristic) {
+            await conectarBluetooth();
+            if (!printCharacteristic) return;
+            await new Promise(r => setTimeout(r, 1000)); // Pausa de seguridad tras conectar
+        }
+
         for (let i = 0; i < fardosDelLote.length; i++) {
             try {
                 await imprimirFardoBT(i, true); // Se llama a la función local en modo silencioso
-                await new Promise(r => setTimeout(r, 500)); 
+                // Reducimos el delay para agilizar la impresión de lotes grandes
+                await new Promise(r => setTimeout(r, 1500)); 
             } catch (e) {
                 console.error("Error imprimiendo fardo " + fardosDelLote[i].fardoNo, e);
             }

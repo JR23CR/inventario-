@@ -19,6 +19,8 @@ async function imprimirEtiquetaTerminado(printCharacteristic, fardo, silent = fa
     // Ajustado según Self-test de la MHT-L1081
     cmd += "SIZE 101 mm, 76 mm\r\n"; 
     cmd += "GAP 3 mm, 0 mm\r\n";
+    cmd += "SET TEAR OFF\r\n"; // Desactiva el avance y retroceso automático entre etiquetas
+    cmd += "SET BACKFEED OFF\r\n"; // Evita que la impresora regrese el papel antes de cada etiqueta
     cmd += "DIRECTION 1\r\n";
     cmd += "CLS\r\n";
     cmd += "DENSITY 12\r\n";
@@ -91,10 +93,16 @@ async function imprimirEtiquetaTerminado(printCharacteristic, fardo, silent = fa
     const encodedData = encoder.encode(cmd);
     
     // Configuración validada por el usuario para MHT-L1081
-    const CHUNK_SIZE = 50; 
+    const CHUNK_SIZE = 100; // Aumentamos el tamaño para mejorar significativamente la velocidad
     for (let i = 0; i < encodedData.length; i += CHUNK_SIZE) {
-        await printCharacteristic.writeValue(encodedData.slice(i, i + CHUNK_SIZE));
-        await new Promise(resolve => setTimeout(resolve, 20)); 
+        const chunk = encodedData.slice(i, i + CHUNK_SIZE);
+        // Usamos writeValueWithoutResponse si está disponible, es mucho más rápido
+        if (printCharacteristic.properties.writeWithoutResponse) {
+            await printCharacteristic.writeValueWithoutResponse(chunk);
+        } else {
+            await printCharacteristic.writeValue(chunk);
+        }
+        await new Promise(resolve => setTimeout(resolve, 20)); // Reducimos el tiempo entre paquetes a 20ms
     }
 
     if (!silent) alert("Etiqueta enviada a " + fardo.fardoNo);

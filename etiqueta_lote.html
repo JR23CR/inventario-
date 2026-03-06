@@ -379,6 +379,7 @@
 
         cmd += "SIZE 4,3\r\n";
         cmd += "GAP 0.12,0\r\n";
+        cmd += "SET TEAR OFF\r\n";
         cmd += "DIRECTION 1\r\n";
         cmd += "CLS\r\n";
         cmd += `QRCODE 50,150,L,10,A,0,M2,S7,"${d.lote}"\r\n`;

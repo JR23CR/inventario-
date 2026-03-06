@@ -70,11 +70,30 @@
             <p id="status" class="text-xs mt-2 text-slate-500"></p>
         </div>
 
+        <!-- Sección de Escaneo / Check List -->
+        <div class="p-6 bg-blue-50 border-b border-blue-100 no-print">
+            <div class="flex flex-col lg:flex-row items-center gap-4">
+                <div class="flex-1 relative w-full">
+                    <i data-lucide="barcode" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-500"></i>
+                    <input type="text" id="scannerInput" placeholder="Escanee código de barras para verificar fardos..." 
+                        class="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-blue-200 focus:border-blue-500 focus:ring-0 outline-none font-bold text-lg">
+                </div>
+                <button onclick="conectarLectorBT()" class="w-full lg:w-auto bg-white hover:bg-blue-50 text-blue-600 border-2 border-blue-200 px-6 py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm">
+                    <i data-lucide="bluetooth"></i> CONECTAR LECTOR BT
+                </button>
+                <div class="bg-white px-6 py-3 rounded-xl border border-blue-200 shadow-sm flex items-center gap-4">
+                    <div class="text-blue-900 font-black text-xl" id="checkedCount">0</div>
+                    <div class="text-slate-400 text-[10px] uppercase font-bold leading-tight">Fardos<br>Verificados</div>
+                </div>
+            </div>
+        </div>
+
         <div class="p-0 overflow-x-auto">
             <table id="packingTable" class="w-full text-[11px] text-center border-collapse">
                 <thead>
                     <tr class="text-slate-900 uppercase tracking-tighter border-y-2 border-slate-900">
                         <th class="p-2 border border-slate-700 no-print">Incluir</th>
+                        <th class="p-2 border border-slate-700 no-print">Check</th>
                         <th class="p-2 border border-slate-700">Item</th>
                         <th class="p-2 border border-slate-700">Paquete</th>
                         <th class="p-2 border border-slate-700">Grosor</th>
@@ -187,12 +206,13 @@
                     
                     // Verifica si el lote de la fila incluye alguno de los términos buscados
                     return searchTerms.some(term => rowLote.includes(term));
-                });
+                }).map(f => ({ ...f, verificado: false }));
 
                 renderTabla();
                 
                 if (fardosCargados.length > 0) {
                     status.innerText = `✅ Se encontraron ${fardosCargados.length} fardos asociados a los lotes buscados.`;
+                    document.getElementById('scannerInput').focus();
                 } else {
                     status.innerText = `⚠️ No se encontraron fardos para "${input}".`;
                 }
@@ -240,6 +260,7 @@
             theadRow.style.height = "52px";
             theadRow.innerHTML = `
                 <th class="p-2 border border-slate-700 no-print">Incluir</th>
+                <th class="p-2 border border-slate-700 no-print">Check</th>
                 <th class="p-2 border border-slate-700">Item</th>
                 <th class="p-2 border border-slate-700">Paquete</th>
                 <th class="p-2 border border-slate-700">Grosor</th>
@@ -288,9 +309,10 @@
                 const pl = piezas * largo;
 
                 const row = document.createElement('tr');
-                row.className = "border-b border-gray-100 hover:bg-blue-50 transition-colors";
+                row.className = `border-b border-gray-100 hover:bg-blue-50 transition-colors ${f.verificado ? 'bg-green-50' : ''}`;
                 row.innerHTML = `
                     <td class="p-2 border no-print"><input type="checkbox" checked class="w-4 h-4 fardo-check" data-index="${index}"></td>
+                    <td class="p-2 border no-print">${f.verificado ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-green-600 mx-auto"></i>' : '<i data-lucide="circle" class="w-4 h-4 text-slate-300 mx-auto"></i>'}</td>
                     <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
                     <td class="p-2 border">${formatThickness(grosor)}</td>
@@ -313,12 +335,14 @@
                 `;
                 body.appendChild(row);
             });
+            lucide.createIcons();
             actualizarTotales();
         }
 
         function actualizarTotales() {
             const checkboxes = document.querySelectorAll('.fardo-check:checked');
             let tM2 = 0, tM3 = 0, tP2 = 0, tPL = 0, tML = 0, tPiezas = 0;
+            let verifiedCount = 0;
             let lastFardo = null;
             let packageCount = 0;
             
@@ -348,6 +372,8 @@
                     lastFardo = fardoId;
                 }
 
+                if (f.verificado) verifiedCount++;
+
                 const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
                 const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
                 const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
@@ -362,9 +388,12 @@
                 tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml; tPiezas += piezas;
             });
 
+            document.getElementById('checkedCount').innerText = verifiedCount;
+
             const foot = document.getElementById('tableFoot');
             foot.innerHTML = `
                 <tr class="text-slate-900 uppercase text-[10px] border-t-2 border-slate-900">
+                    <td class="p-2 border no-print"></td>
                     <td class="p-2 border no-print"></td>
                     <td class="p-2 border font-black text-center">${packageCount}</td>
                     <td colspan="5" class="p-2 border text-right font-black"></td>
@@ -396,6 +425,150 @@
         document.getElementById('producto').addEventListener('input', function() {
             if (fardosCargados.length > 0) renderTabla();
         });
+
+        // --- LÓGICA DE SONIDO ---
+        function emitirSonido(tipo) {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioCtx.createOscillator();
+                const gainNode = audioCtx.createGain();
+
+                oscillator.connect(gainNode);
+                gainNode.connect(audioCtx.destination);
+
+                if (tipo === 'success') {
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // Nota aguda
+                    gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.1);
+                } else {
+                    oscillator.type = 'sawtooth'; // Sonido más áspero para error
+                    oscillator.frequency.setValueAtTime(150, audioCtx.currentTime); // Nota grave
+                    gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.4);
+                }
+            } catch (e) {
+                console.warn("Audio no disponible", e);
+            }
+        }
+
+        // --- LÓGICA PARA EL LECTOR DE BARRAS ---
+        
+        // Función central para procesar el código (venga de teclado o Bluetooth)
+        function procesarEscaneo(code) {
+            code = String(code).trim();
+            if (!code) return;
+            
+            let encontrado = false;
+            fardosCargados.forEach(f => {
+                const fardoId = String(getVal(f, ['Fardo', '# Fardo', 'FARDO'])).trim();
+                if (fardoId === code) {
+                    f.verificado = true;
+                    encontrado = true;
+                }
+            });
+
+            if (encontrado) {
+                emitirSonido('success');
+                renderTabla();
+            } else {
+                emitirSonido('error');
+                alert("⚠️ Fardo #" + code + " no encontrado en la lista actual.");
+            }
+        }
+
+        document.getElementById('scannerInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                procesarEscaneo(this.value);
+                this.value = '';
+            }
+        });
+
+        // Lógica Web Bluetooth para el lector AON
+        let scannerBuffer = "";
+        let scannerTimeout = null;
+
+        async function conectarLectorBT() {
+            try {
+                // UUIDs comunes para lectores de barras chinos (AON, Netum, Eyoyo)
+                const scannerServices = [
+                    '0000ff00-0000-1000-8000-00805f9b34fb', 
+                    '0000fee7-0000-1000-8000-00805f9b34fb',
+                    '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                    '000018f0-0000-1000-8000-00805f9b34fb',
+                    '0000ae30-0000-1000-8000-00805f9b34fb',
+                    'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                    '0000ffe0-0000-1000-8000-00805f9b34fb'
+                ];
+
+                const device = await navigator.bluetooth.requestDevice({
+                    acceptAllDevices: true,
+                    optionalServices: scannerServices
+                });
+
+                const server = await device.gatt.connect();
+                
+                // Intentamos obtener los servicios uno por uno para evitar el error de "No services found"
+                let characteristic = null;
+                try {
+                    const services = await server.getPrimaryServices();
+                    for (const service of services) {
+                        try {
+                            const chars = await service.getCharacteristics();
+                            characteristic = chars.find(c => c.properties.notify || c.properties.indicate);
+                            if (characteristic) break;
+                        } catch (e) { continue; }
+                    }
+                } catch (e) {
+                    console.error("Error obteniendo servicios:", e);
+                }
+
+                if (!characteristic) {
+                    throw new Error("No se encontró el canal de datos. El lector podría estar en modo HID (Teclado) o usa un UUID no registrado.");
+                }
+                
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', (event) => {
+                    // Obtenemos los datos crudos del evento
+                    const value = event.target.value;
+                    const decoded = new TextDecoder().decode(value);
+                    scannerBuffer += decoded;
+
+                    if (scannerTimeout) clearTimeout(scannerTimeout);
+
+                    // Bluefy/iOS a veces procesa los eventos más lento, 
+                    // buscamos cualquier carácter de terminación común (\r, \n o \r\n)
+                    if (/[\r\n]/.test(scannerBuffer)) {
+                        const finalCode = scannerBuffer.replace(/[\r\n]/g, '').trim();
+                        if (finalCode) {
+                            document.getElementById('scannerInput').value = finalCode;
+                            procesarEscaneo(finalCode);
+                        }
+                        scannerBuffer = "";
+                    } else {
+                        // Si el lector no manda Enter, procesamos tras 250ms de inactividad
+                        // Este tiempo es ideal para Bluefy
+                        scannerTimeout = setTimeout(() => {
+                            const finalCode = scannerBuffer.trim();
+                            if (finalCode) {
+                                document.getElementById('scannerInput').value = finalCode;
+                                procesarEscaneo(finalCode);
+                            }
+                            scannerBuffer = "";
+                        }, 250);
+                    }
+                });
+                alert("✅ Lector conectado: " + device.name);
+                document.getElementById('status').innerText = "✅ Lector conectado: " + device.name + ". Listo para escanear.";
+                document.getElementById('status').style.color = "#1A237E";
+
+            } catch (error) {
+                console.error(error);
+                alert("Error: " + error.message + "\n\nTIP: Si el lector ya está vinculado al Bluetooth del celular/PC, use el modo teclado directamente.");
+            }
+        }
 
         async function rebajarInventario() {
             const seleccionados = Array.from(document.querySelectorAll('.fardo-check:checked'));
