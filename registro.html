@@ -225,7 +225,7 @@
         </div>
 
         <div class="grid-3">
-            <div>
+            <div id="div-grosor-standard">
                 <label>Grosor</label>
                 <select id="grosor" class="compact-input">
                     <option value="3/4">3/4"</option>
@@ -241,6 +241,7 @@
                     <option value="Tranquilla">Tranquilla</option>
                     <option value="Deck">Deck</option>
                     <option value="Zocalo">Zocalo</option>
+                    <option value="Reglas Cepilladas">Reglas Cepilladas</option>
                 </select>
             </div>
             <div id="div-calidad" style="display: none;">
@@ -249,6 +250,17 @@
                     <option value="Primera">Primera</option>
                     <option value="Segunda">Segunda</option>
                 </select>
+            </div>
+        </div>
+
+        <div id="div-reglas" style="display: none;" class="grid-2">
+            <div>
+                <label>Grosor Rústico</label>
+                <input type="text" id="grosorRustico" class="compact-input" placeholder="Ej: 1 o 4/4">
+            </div>
+            <div>
+                <label>Grosor Terminado</label>
+                <input type="text" id="grosorTerminado" class="compact-input" placeholder="Ej: 3/4">
             </div>
         </div>
         
@@ -365,10 +377,14 @@
         const calidadSelect = document.getElementById('calidad');
         const anchoInput = document.getElementById('ancho');
         const grosorSelect = document.getElementById('grosor');
+        const divReglas = document.getElementById('div-reglas');
+        const divGrosorStd = document.getElementById('div-grosor-standard');
 
         // Mostrar Calidad si es Piso, Deck o Zocalo
         if (prod === 'Piso Barnizado' || prod === 'Piso Crudo' || prod === 'Deck') {
             divCalidad.style.display = 'block';
+            divReglas.style.display = 'none';
+            divGrosorStd.style.display = 'block';
             calidadSelect.innerHTML = `
                 <option value="Primera">Primera</option>
                 <option value="Segunda">Segunda</option>
@@ -378,13 +394,21 @@
             }
         } else if (prod === 'Zocalo') {
             divCalidad.style.display = 'block';
+            divReglas.style.display = 'none';
+            divGrosorStd.style.display = 'block';
             calidadSelect.innerHTML = `
                 <option value="Corte 45">Corte 45</option>
                 <option value="Italiano">Italiano</option>
                 <option value="Pecho Paloma">Pecho Paloma</option>
             `;
+        } else if (prod === 'Reglas Cepilladas') {
+            divReglas.style.display = 'grid';
+            divCalidad.style.display = 'none';
+            divGrosorStd.style.display = 'none';
         } else {
             divCalidad.style.display = 'none';
+            divReglas.style.display = 'none';
+            divGrosorStd.style.display = 'block';
         }
 
         if(anchoInput.value === "0") anchoInput.value = "5"; 
@@ -540,13 +564,22 @@
             handleProductChange(); // Ajustar visibilidad de calidad
             
             const c = ultimo['Calidad'] || ultimo.calidad;
-            if (c) document.getElementById('calidad').value = c;
+            if (c) {
+                if (p === 'Reglas Cepilladas' && String(c).startsWith("T: ")) {
+                    document.getElementById('grosorTerminado').value = c.replace("T: ", "");
+                } else {
+                    document.getElementById('calidad').value = c;
+                }
+            }
             const a = ultimo['Ancho "'] || ultimo['Ancho'] || ultimo.ancho;
             if (a) document.getElementById('ancho').value = a;
             const e = ultimo['Especie'] || ultimo.especie;
             if (e) document.getElementById('especie').value = e;
             const g = ultimo['Grosor "'] || ultimo['Grosor'] || ultimo.grosor;
-            if (g) document.getElementById('grosor').value = g;
+            if (g) {
+                if (p === 'Reglas Cepilladas') document.getElementById('grosorRustico').value = g;
+                else document.getElementById('grosor').value = g;
+            }
         }
     }
 
@@ -719,7 +752,18 @@
             }
             return parseFloat(str);
         };
-        const grosorVal = parseFraction(grosorStr);
+
+        let grosorParaCalculo;
+        let grosorParaDB;
+
+        if (producto === 'Reglas Cepilladas') {
+            grosorParaCalculo = parseFraction(document.getElementById('grosorRustico').value);
+            grosorParaDB = document.getElementById('grosorTerminado').value;
+            calidad = "R: " + document.getElementById('grosorRustico').value;
+        } else {
+            grosorParaCalculo = parseFraction(grosorStr);
+            grosorParaDB = grosorStr;
+        }
         const unidad = (producto === 'Tranquilla' || producto === 'Zocalo' || producto === 'Deck') ? 'ml' : 'm2';
 
         // --- FORMATO FECHA SIN HORA ---
@@ -734,15 +778,15 @@
             const ml_linea = d.piezas * (d.largo * 0.3048);
             
             // CORRECCIÓN: Fórmula Pie Cuadrado (PT) = (Grosor * Ancho * Largo * Piezas) / 12
-            const p2_linea = (grosorVal * anchoGlobal * d.largo * d.piezas) / 12;
-            const m3_linea = m2_linea * (grosorVal * 0.0254);
+            const p2_linea = (grosorParaCalculo * anchoGlobal * d.largo * d.piezas) / 12;
+            const m3_linea = m2_linea * (grosorParaCalculo * 0.0254);
 
             filasParaEnviar.push({
                 lote: lote,
                 fardoNo: fardoNo,
                 producto: producto,
                 calidad: calidad, // Enviamos la calidad
-                grosor: fmtNum(grosorVal),
+                grosor: fmtNum(grosorParaDB),
                 ancho: fmtNum(anchoGlobal),
                 especie: document.getElementById('especie').value,
                 piezas: d.piezas,
@@ -769,7 +813,7 @@
 
         const fardoParaHistorial = {
             lote: lote, fardoNo: fardoNo, producto: producto, calidad: calidad,
-            grosor: grosorVal, ancho: anchoGlobal,
+            grosor: grosorParaDB, ancho: anchoGlobal,
             especie: document.getElementById('especie').value, detalles: [...currentDetalles],
             m2: parseFloat(totalMetrosFardo.toFixed(2)),
             p2: parseFloat(totalP2Fardo.toFixed(2)),
@@ -919,7 +963,15 @@
         document.getElementById('producto').value = f.producto;
         handleProductChange(); // Actualizar opciones antes de setear valor
 
-        document.getElementById('grosor').value = f.grosor;
+        if (f.producto === 'Reglas Cepilladas') {
+            document.getElementById('grosorRustico').value = f.grosor;
+            if (f.calidad && f.calidad.startsWith("T: ")) {
+                document.getElementById('grosorTerminado').value = f.calidad.replace("T: ", "");
+            }
+        } else {
+            document.getElementById('grosor').value = f.grosor;
+        }
+        
         document.getElementById('ancho').value = f.ancho;
         document.getElementById('especie').value = f.especie;
         
@@ -958,13 +1010,19 @@
             } catch(e) { console.error(e); }
         }
         
-        const unidad = f.unidad === 'ml' ? 'ML' : 'M2';
+        const esRegla = f.producto === 'Reglas Cepilladas';
+        const unidad = f.unidad === 'ml' ? 'ML' : (esRegla ? 'PT' : 'M2');
+        const valorVolumen = esRegla ? f.p2 : f.m2;
+
         document.getElementById('printLote').innerText = "Lote: " + f.lote;
-        document.getElementById('printFardoM2').innerText = `Fardo: ${f.fardoNo} - ${f.m2} ${unidad}`;
+        document.getElementById('printFardoM2').innerText = `Fardo: ${f.fardoNo} - ${valorVolumen} ${unidad}`;
         
         // Mostrar calidad en la etiqueta si existe
         let prodText = `${f.producto}`;
-        if(f.calidad) prodText += ` (${f.calidad})`;
+        if(f.calidad) {
+            // Para Reglas usamos corchetes para diferenciar el grosor rústico
+            prodText += esRegla ? ` [${f.calidad}]` : ` (${f.calidad})`;
+        }
         prodText += ` ${f.grosor} x ${f.ancho}"`;
 
         document.getElementById('printProducto').innerText = prodText;

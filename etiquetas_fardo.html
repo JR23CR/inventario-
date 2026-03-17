@@ -272,12 +272,14 @@
                 agrupado[key] = {
                     lote: lote,
                     fardoNo: fardoNo,
-                    producto: getVal(['Producto', 'Calidad', 'producto']) || '',
+                    producto: getVal(['Producto', 'PRODUCTO', 'producto']) || '',
+                    calidad: getVal(['Calidad', 'CALIDAD', 'calidad']) || '',
                     especie: getVal(['Especie', 'especie']) || '',
                     grosor: formatearGrosor(getVal(['Grosor "', 'Grosor', 'grosor'])),
                     ancho: parseFloat(getVal(['Ancho "', 'Ancho', 'ancho'])) || 0,
                     m2: 0,
                     ml: 0,
+                    p2: 0,
                     piezas: 0,
                     detalles: []
                 };
@@ -291,10 +293,13 @@
             }
 
             const m2Row = parseFloat(getVal(['M2', 'm2', 'M2_Total_Fardo'])) || 0;
-            if (m2Row > agrupado[key].m2) agrupado[key].m2 = m2Row;
+            agrupado[key].m2 += m2Row;
             
             const mlRow = parseFloat(getVal(['ML', 'ml', 'Ml'])) || 0;
-            if (mlRow > agrupado[key].ml) agrupado[key].ml = mlRow;
+            agrupado[key].ml += mlRow;
+
+            const p2Row = parseFloat(getVal(['P2', 'p2', 'PT', 'P²'])) || 0;
+            agrupado[key].p2 += p2Row;
         });
 
         inventarioAgrupado = Object.values(agrupado).map(f => {
@@ -303,23 +308,15 @@
             // Detectar si es ML (Zocalo, Deck, Tranquilla)
             const prod = (f.producto || '').toLowerCase();
             const isML = prod.includes('tranquilla') || prod.includes('zocalo') || prod.includes('deck');
-            f.unidad = isML ? 'ML' : 'M2';
-
-            if (f.detalles.length > 0) {
-                let totalCalc = 0;
-                f.detalles.forEach(d => {
-                    if (isML) {
-                        totalCalc += d.piezas * (d.largo * 0.3048); // ML
-                    } else if (f.ancho > 0) {
-                        totalCalc += d.piezas * (d.largo * 0.3048) * (f.ancho * 0.0254); // M2
-                    }
-                });
-                f.m2 = parseFloat(totalCalc.toFixed(2)); // Usamos f.m2 como contenedor del valor total
-            } else {
-                // Si no hay detalles, usar el valor leído de la columna correspondiente
-                const val = isML && f.ml > 0 ? f.ml : f.m2;
-                f.m2 = parseFloat(val.toFixed(2));
-            }
+            const isRegla = prod.includes('reglas cepilladas');
+            f.unidad = isML ? 'ML' : (isRegla ? 'PT' : 'M2');
+            
+            // Usar directamente los valores sumados de la base de datos
+            let valorFinal = f.m2;
+            if (isML) valorFinal = f.ml;
+            if (isRegla) valorFinal = f.p2;
+            
+            f.m2 = parseFloat(valorFinal.toFixed(2));
             return f;
         });
     }

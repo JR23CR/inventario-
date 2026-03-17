@@ -156,12 +156,31 @@
         // Helper para convertir fracciones (3/4) a decimales
         function parseDimension(val) {
             if (!val) return 0;
-            const s = String(val).replace(/'/g, '').trim(); // Quitar comillas si hay
+            let s = String(val).replace(/'/g, '').trim();
+            
+            // Detectar fechas que Sheets crea por error (ej: "3/4" -> date)
+            if (s.includes('T') && !isNaN(Date.parse(s))) {
+                const d = new Date(s);
+                return d.getDate() / (d.getMonth() + 1);
+            }
+
+            // Manejar números mixtos como "1 3/4"
+            if (s.includes(' ')) {
+                const parts = s.split(/\s+/);
+                const whole = parseFloat(parts[0]) || 0;
+                let fraction = 0;
+                if (parts[1] && parts[1].includes('/')) {
+                    const fParts = parts[1].split('/');
+                    fraction = parseFloat(fParts[0]) / parseFloat(fParts[1]);
+                }
+                return whole + fraction;
+            }
+
             if (s.includes('/')) {
                 const parts = s.split('/');
                 return parseFloat(parts[0]) / parseFloat(parts[1]);
             }
-            return parseFloat(s) || 0;
+            return parseFloat(s.replace(',', '.')) || 0;
         }
 
         function formatThickness(v) {
@@ -172,7 +191,9 @@
             }
             if (typeof v === 'string' && v.includes('T') && !isNaN(Date.parse(v))) {
                 const d = new Date(v);
-                return `${d.getDate()}/${d.getMonth() + 1}`;
+                if (d.getFullYear() > 2000) {
+                    return `${d.getDate()}/${d.getMonth() + 1}`;
+                }
             }
             // Reemplazar coma por punto
             const val = parseFloat(String(v).replace(',', '.'));
@@ -189,6 +210,10 @@
                 if (Math.abs(val - 2.5) < epsilon) return "10/4";
                 if (Math.abs(val - 2.75) < epsilon) return "11/4";
                 if (Math.abs(val - 3.0) < epsilon) return "12/4";
+                if (Math.abs(val - 1.75) < epsilon) return "1 3/4";
+                if (Math.abs(val - 1.5) < epsilon) return "1 1/2";
+                if (Math.abs(val - 1.25) < epsilon) return "1 1/4";
+                if (Math.abs(val - 2.5) < epsilon) return "2 1/2";
                 if (Math.abs(val - 4.0) < epsilon) return "16/4";
             }
             return v;
@@ -261,7 +286,6 @@
                 esLineal = false;
             }
 
-            // Actualizar Encabezados dinámicamente
             const theadRow = document.querySelector('#packingTable thead tr');
             theadRow.style.height = "52px";
             theadRow.innerHTML = `
@@ -273,46 +297,28 @@
                 <th class="p-2 border border-slate-700">Ancho</th>
                 <th class="p-2 border border-slate-700">Piezas</th>
                 <th class="p-2 border border-slate-700">Largo '</th>
-                ${esLineal ? 
-                    `<th class="p-2 border border-slate-700">M2</th>
-                     <th class="p-2 border border-slate-700">M³</th>
-                     <th class="p-2 border border-slate-700">P²</th>
-                     <th class="p-2 border border-slate-700">PL</th>
-                     <th class="p-2 border border-slate-700">ML</th>` 
-                    : 
-                    `<th class="p-2 border border-slate-700">ML</th>
-                     <th class="p-2 border border-slate-700">M³</th>
-                     <th class="p-2 border border-slate-700">P²</th>
-                     <th class="p-2 border border-slate-700">PL</th>
-                     <th class="p-2 border border-slate-700">M2</th>`
-                }
+                <th class="p-2 border border-slate-700">M³</th>
+                <th class="p-2 border border-slate-700">PT (P²)</th>
             `;
             
             fardosCargados.forEach((f, index) => {
                 // Usar getVal para recuperar datos independientemente del nombre exacto de la columna
                 const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
-                const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
+                const grosorStr = getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']);
                 const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
                 const largo = parseFloat(getVal(f, ['Largo', 'LARGO', "Largo '", 'Largo_Ft'])) || 0;
                 const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
+
+                // EXTRAER VALORES DIRECTOS DE LA BASE DE DATOS
+                const p2 = parseFloat(getVal(f, ['P2', 'p2', 'PT', 'P²'])) || 0;
+                const m3 = parseFloat(getVal(f, ['M3', 'm3', 'M³'])) || 0;
+                const displayGrosor = formatThickness(grosorStr);
 
                 let displayItem = "";
                 if (fardoId !== lastFardo) {
                     displayItem = "1";
                     lastFardo = fardoId;
                 }
-
-                // Fórmulas Corregidas (Coincidentes con Google Sheets / Registro)
-                // M2 = Piezas * Largo(m) * Ancho(m)
-                const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
-                // ML = Piezas * Largo(m)
-                const ml = piezas * (largo * 0.3048);
-                // P2 (Pie Tablar) = (Piezas * Grosor" * Ancho" * Largo') / 12
-                const p2 = (piezas * grosor * ancho * largo) / 12;
-                // M3 = M2 * Grosor(m)
-                const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
-                // PL (Pie Lineal) = Piezas * Largo'
-                const pl = piezas * largo;
 
                 const row = document.createElement('tr');
                 row.className = `border-b border-gray-100 hover:bg-blue-50 transition-colors ${f.verificado ? 'bg-green-50' : ''}`;
@@ -321,23 +327,12 @@
                     <td class="p-2 border no-print">${f.verificado ? '<i data-lucide="check-circle-2" class="w-4 h-4 text-green-600 mx-auto"></i>' : '<i data-lucide="circle" class="w-4 h-4 text-slate-300 mx-auto"></i>'}</td>
                     <td class="p-2 border">${displayItem}</td>
                     <td class="p-2 border font-bold">${fardoId || '-'}</td>
-                    <td class="p-2 border">${formatThickness(grosor)}</td>
+                    <td class="p-2 border">${displayGrosor}</td>
                     <td class="p-2 border">${ancho.toFixed(2)}</td>
                     <td class="p-2 border">${piezas}</td>
                     <td class="p-2 border">${largo.toFixed(2)}</td>
-                    ${esLineal ? 
-                        `<td class="p-2 border font-bold">${m2.toFixed(2)}</td>
-                         <td class="p-2 border">${m3.toFixed(2)}</td>
-                         <td class="p-2 border">${p2.toFixed(2)}</td>
-                         <td class="p-2 border">${pl.toFixed(2)}</td>
-                         <td class="p-2 border font-bold text-slate-700">${ml.toFixed(2)}</td>`
-                        :
-                        `<td class="p-2 border font-bold text-slate-700">${ml.toFixed(2)}</td>
-                         <td class="p-2 border">${m3.toFixed(2)}</td>
-                         <td class="p-2 border">${p2.toFixed(2)}</td>
-                         <td class="p-2 border">${pl.toFixed(2)}</td>
-                         <td class="p-2 border font-bold">${m2.toFixed(2)}</td>`
-                    }
+                    <td class="p-2 border">${m3.toFixed(3)}</td>
+                    <td class="p-2 border font-bold">${p2.toFixed(2)}</td>
                 `;
                 body.appendChild(row);
             });
@@ -379,23 +374,16 @@
                     lastFardo = fardoId;
                 }
 
-                const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
-                const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
-                const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
-                const largo = parseFloat(getVal(f, ['Largo', 'LARGO', "Largo '", 'Largo_Ft'])) || 0;
-
-                const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
-                const ml = piezas * (largo * 0.3048);
-                const p2 = (piezas * grosor * ancho * largo) / 12;
-                const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
-                const pl = piezas * largo;
+                const m2 = parseFloat(getVal(f, ['M2', 'm2', 'Metros'])) || 0;
+                const p2 = parseFloat(getVal(f, ['P2', 'p2', 'PT', 'P²'])) || 0;
+                const m3 = parseFloat(getVal(f, ['M3', 'm3', 'M³'])) || 0;
 
                 if (f.verificado) {
                     verifiedFardosSet.add(fardoId);
                     verifiedM2 += m2;
                 }
 
-                tM2 += m2; tM3 += m3; tP2 += p2; tPL += pl; tML += ml; tPiezas += piezas;
+                tM2 += m2; tM3 += m3; tP2 += p2;
             });
 
             document.getElementById('checkedCount').innerText = verifiedFardosSet.size;
@@ -426,19 +414,8 @@
                     <td class="p-2 border no-print"></td>
                     <td class="p-2 border font-black text-center">${packageCount}</td>
                     <td colspan="5" class="p-2 border text-right font-black"></td>
-                    ${esLineal ? 
-                        `<td class="p-2 border font-black">${tM2.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tML.toFixed(2)}</td>`
-                        :
-                        `<td class="p-2 border font-black">${tML.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tM3.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tP2.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tPL.toFixed(2)}</td>
-                         <td class="p-2 border font-black">${tM2.toFixed(2)}</td>`
-                    }
+                    <td class="p-2 border font-black">${tM3.toFixed(3)}</td>
+                    <td class="p-2 border font-black text-blue-700">${tP2.toFixed(2)}</td>
                 </tr>
             `;
         }
@@ -723,10 +700,7 @@
             worksheet.getCell('A10').value = "Dirección: " + document.getElementById('direccion').value;
             ['A6', 'A7', 'A8', 'A9', 'A10'].forEach(cell => worksheet.getCell(cell).font = metadataStyle);
 
-            // Encabezados de tabla (A12 a K12)
-            const headers = esLineal ? 
-                ["Item", "Paquete", "Grosor", "Ancho", "Piezas", "Largo '", "M2", "M3", "P2", "PL", "ML"] :
-                ["Item", "Paquete", "Grosor", "Ancho", "Piezas", "Largo '", "ML", "M3", "P2", "PL", "M2"];
+            const headers = ["Item", "Paquete", "Grosor", "Ancho", "Piezas", "Largo '", "M3", "PT"];
             
             const headerRow = worksheet.getRow(12);
             headerRow.values = headers;
@@ -754,7 +728,15 @@
                     if (!f) return;
                     
                     const piezas = parseFloat(getVal(f, ['Piezas', 'PIEZAS', 'Pzs'])) || 0;
-                    const grosor = parseDimension(getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']));
+                    const producto = getVal(f, ['Producto', 'PRODUCTO', 'Product']);
+                    const calidad = getVal(f, ['Calidad', 'CALIDAD', 'Quality']);
+                    const grosorStr = getVal(f, ['Grosor', 'GROSOR', 'Grosor "', 'Espesor']);
+                    
+                    let grosorCalculo = parseDimension(grosorStr);
+                    if (producto === 'Reglas Cepilladas' && String(calidad).startsWith('R: ')) {
+                        grosorCalculo = parseDimension(calidad.replace('R: ', ''));
+                    }
+
                     const ancho = parseFloat(getVal(f, ['Ancho', 'ANCHO', 'Ancho "'])) || 0;
                     const largo = parseFloat(getVal(f, ['Largo', 'LARGO', "Largo '", 'Largo_Ft'])) || 0;
                     const fardoId = getVal(f, ['Fardo', '# Fardo', 'FARDO']);
@@ -768,15 +750,13 @@
 
                     const m2 = piezas * (largo * 0.3048) * (ancho * 0.0254);
                     const ml = piezas * (largo * 0.3048);
-                    const p2 = (piezas * grosor * ancho * largo) / 12;
-                    const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosor * 0.0254);
+                    const p2 = (piezas * grosorCalculo * ancho * largo) / 12;
+                    const m3 = piezas * (largo * 0.3048) * (ancho * 0.0254) * (grosorCalculo * 0.0254);
                     const pl = piezas * largo;
 
                     totalM2 += m2; totalM3 += m3; totalP2 += p2; totalPL += pl; totalML += ml; totalPiezas += piezas;
 
-                    const rowValues = esLineal ? 
-                        [displayItem, fardoId, parseFloat(grosor.toFixed(2)), parseFloat(ancho.toFixed(2)), piezas, parseFloat(largo.toFixed(2)), parseFloat(m2.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(ml.toFixed(2))] :
-                        [displayItem, fardoId, parseFloat(grosor.toFixed(2)), parseFloat(ancho.toFixed(2)), piezas, parseFloat(largo.toFixed(2)), parseFloat(ml.toFixed(2)), parseFloat(m3.toFixed(2)), parseFloat(p2.toFixed(2)), parseFloat(pl.toFixed(2)), parseFloat(m2.toFixed(2))];
+                    const rowValues = [displayItem, fardoId, formatThickness(grosorStr), parseFloat(ancho.toFixed(2)), piezas, parseFloat(largo.toFixed(2)), parseFloat(m3.toFixed(3)), parseFloat(p2.toFixed(2))];
                     
                     const row = worksheet.addRow(rowValues);
                     row.eachCell(cell => {
@@ -786,9 +766,7 @@
                 });
 
                 // Fila de Totales
-                const totalRowValues = esLineal ? 
-                    [packageCounter, '', '', '', '', '', parseFloat(totalM2.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalML.toFixed(2))] :
-                    [packageCounter, '', '', '', '', '', parseFloat(totalML.toFixed(2)), parseFloat(totalM3.toFixed(2)), parseFloat(totalP2.toFixed(2)), parseFloat(totalPL.toFixed(2)), parseFloat(totalM2.toFixed(2))];
+                const totalRowValues = [packageCounter, '', '', '', '', '', parseFloat(totalM3.toFixed(3)), parseFloat(totalP2.toFixed(2))];
                 
                 const totalRow = worksheet.addRow(totalRowValues);
                 totalRow.font = { bold: true };

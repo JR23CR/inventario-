@@ -474,44 +474,38 @@
             btn.disabled = true;
             lucide.createIcons();
 
-            let successCount = 0;
-            let errorCount = 0;
+            try {
+                const payload = { 
+                    tipo: "baja_aserrada", 
+                    bultos: Array.from(fardosSet).map(String), // Enviamos el array completo
+                    sheetName: "MADERA ASERRADA", 
+                    targetSheet: "SALIDA MDA", 
+                    motivo: motivo 
+                };
 
-            // Procesar uno por uno (para evitar timeouts o complejidad en backend si no soporta bulk)
-            for (const fardoId of fardosSet) {
-                try {
-                    const payload = { 
-                        tipo: "baja_aserrada", 
-                        bulto: fardoId,
-                        sheetName: "MADERA ASERRADA", 
-                        targetSheet: "SALIDA MDA", 
-                        motivo: motivo 
-                    };
-
-                    const res = await fetch(SCRIPT_URL, {
-                        method: "POST",
-                        body: JSON.stringify(payload)
-                    });
-                    const data = await res.json();
-                    
-                    if (data.result === "success") successCount++;
-                    else {
-                        console.error(`Error fardo ${fardoId}:`, data.message);
-                        errorCount++;
-                    }
-                } catch (e) {
-                    console.error(`Excepción fardo ${fardoId}:`, e);
-                    errorCount++;
+                const res = await fetch(SCRIPT_URL, {
+                    method: "POST",
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                
+                if (data.result === "success") {
+                    alert(`✅ Éxito: ${fardosSet.size} fardos procesados y eliminados del inventario.`);
+                } else {
+                    alert("❌ Error: " + (data.message || "No se pudo completar la operación"));
                 }
+            } catch (e) {
+                console.error("Excepción en la baja masiva:", e);
+                alert("❌ Error de conexión: " + e.message);
             }
 
-            alert(`Proceso finalizado.\n✅ Exitosos: ${successCount}\n❌ Fallidos: ${errorCount}`);
             btn.innerHTML = originalText;
             btn.disabled = false;
             lucide.createIcons();
             
             // Refrescar tabla
-            buscarFardos();
+            await new Promise(r => setTimeout(r, 1000)); // Pausa de seguridad
+            await cargarInventario();
         }
 
         async function exportarExcel() {
