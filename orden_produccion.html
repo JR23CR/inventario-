@@ -6,7 +6,6 @@
     <title>Orden de Producción - GIBOR S.A.</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <style>
         @media print {
             @page { size: letter landscape; margin: 10mm; }
@@ -20,6 +19,10 @@
             .print-table td { border-bottom: 1px solid #e5e7eb; padding: 12px 8px; vertical-align: top; }
             .print-table { width: 100%; border-collapse: collapse; }
         }
+        /* Feedback visual para carga */
+        .loading-overlay { cursor: wait; pointer-events: none; opacity: 0.7; }
+        /* Scrollbar suave para el historial */
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
     </style>
 </head>
 <body class="bg-gray-100 font-sans p-4 md:p-8">
@@ -34,8 +37,8 @@
                 </h1>
             </div>
             <div class="flex gap-2">
-                <button onclick="generarPDF()" class="bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
-                    <i data-lucide="file-down" class="w-4 h-4"></i> Descargar PDF
+                <button id="btnGenerar" onclick="generarPDF()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
+                    <i data-lucide="printer" class="w-4 h-4"></i> Imprimir Orden
                 </button>
                 <button onclick="toggleHistory()" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-bold flex items-center gap-2 transition-all">
                     <i data-lucide="history" class="w-4 h-4"></i> Historial
@@ -201,6 +204,7 @@
     <script>
         lucide.createIcons();
 
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyJm67IZXi_zHsxQv3mqosqb6-RyKp4-j-h-kqdP153HTN8t6lt7BPE5BrwSzphArkx/exec";
         // Establecer fecha actual por defecto en formato largo en español
         const opcionesFecha = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
         document.getElementById('fechaOrden').value = new Date().toLocaleDateString('es-ES', opcionesFecha);
@@ -254,63 +258,12 @@
             }
         }
 
-        function generarPDF() {
-            guardarOrdenLocal(); // Guardar automáticamente al generar PDF
-            actualizarCorrelativoSiguiente(); // Preparar el siguiente número
-
-            const element = document.getElementById('documento');
-            const ordenNo = document.getElementById('ordenNo').value || 'Sin_Numero';
-            
-            // Clonar el elemento para manipularlo sin afectar la vista actual
-            const clone = element.cloneNode(true);
-            
-            // Limpiar elementos no deseados en el PDF
-            const noPrint = clone.querySelectorAll('.no-print');
-            noPrint.forEach(el => el.remove());
-
-            // Reemplazar inputs y textareas con texto estático para mejor renderizado
-            const inputs = clone.querySelectorAll('input, textarea');
-            inputs.forEach(input => {
-                const div = document.createElement('div');
-                div.textContent = input.value;
-                div.style.whiteSpace = 'pre-wrap';
-                div.style.width = '100%';
-                
-                // Preservar alineación
-                if (input.classList.contains('text-center')) div.style.textAlign = 'center';
-                else if (input.classList.contains('text-right')) div.style.textAlign = 'right';
-                else div.style.textAlign = 'left';
-
-                // Estilos específicos para encabezados vs tabla
-                if (input.id === 'ordenNo') {
-                    div.style.fontSize = '24px';
-                    div.style.fontWeight = '900';
-                    div.style.textAlign = 'right';
-                    div.style.color = '#111827'; // gray-900
-                } else if (input.id === 'fechaOrden' || input.id === 'fechaEntrega') {
-                    div.style.textAlign = 'right';
-                    div.style.fontSize = '14px';
-                    div.style.fontWeight = '900';
-                } else {
-                    div.style.fontSize = '11px'; // Letra legible en tabla
-                }
-
-                input.parentNode.replaceChild(div, input);
-            });
-
-            const opt = {
-                margin:       0.3,
-                filename:     `Orden_Produccion_${ordenNo}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, letterRendering: true },
-                jsPDF:        { unit: 'in', format: 'letter', orientation: 'landscape' }
-            };
-
-            html2pdf().set(opt).from(clone).save().then(() => {
-                // Actualizar correlativo en pantalla DESPUÉS de la descarga
-                const next = localStorage.getItem('secuencia_orden_produccion');
-                if(next) document.getElementById('ordenNo').value = next;
-            });
+        function generarPDF(esReimpresion = false) {
+            if (!esReimpresion) {
+                guardarOrdenLocal();
+                actualizarCorrelativoSiguiente();
+            }
+            window.print();
         }
 
         // --- LÓGICA DE HISTORIAL ---
@@ -382,12 +335,56 @@
                     <td class="p-3 text-slate-500">${orden.fecha}</td>
                     <td class="p-3 text-xs">${orden.filas.length} productos (${orden.filas[0].producto}...)</td>
                     <td class="p-3 text-right">
+                        <button onclick='descargarDesdeHistorial(${JSON.stringify(orden).replace(/'/g, "&apos;")})' class="bg-red-100 text-red-600 hover:bg-red-200 p-2 rounded-lg transition-colors mr-2" title="Descargar de nuevo"><i data-lucide="file-down" class="w-4 h-4"></i></button>
                         <button onclick='cargarOrden(${JSON.stringify(orden).replace(/'/g, "&apos;")})' class="bg-blue-100 text-blue-600 hover:bg-blue-200 p-2 rounded-lg transition-colors mr-2" title="Cargar"><i data-lucide="upload" class="w-4 h-4"></i></button>
                     </td>
                 `;
                 tbody.appendChild(tr);
             });
             lucide.createIcons();
+        }
+
+        async function descargarDesdeHistorial(orden) {
+            // Cargar datos del historial temporalmente en el formulario
+            document.getElementById('ordenNo').value = orden.ordenNo;
+            document.getElementById('fechaOrden').value = orden.fecha;
+            document.getElementById('fechaEntrega').value = orden.fechaEntrega || '';
+            document.getElementById('tablaCuerpo').innerHTML = '';
+            orden.filas.forEach(fila => agregarFila(fila));
+            
+            lucide.createIcons(); // Refrescar iconos en la tabla cargada
+
+            // Generar PDF indicando que es una reimpresión para no duplicar datos
+            await generarPDF(true);
+        }
+
+        async function guardarOrdenNube() {
+            // Esta función envía el registro al sistema central (Google Sheets)
+            const ordenNo = document.getElementById('ordenNo').value;
+            const filas = [];
+            
+            document.querySelectorAll('#tablaCuerpo tr').forEach(tr => {
+                const textareas = tr.querySelectorAll('textarea');
+                if(textareas.length > 0 && textareas[0].value.trim() !== '') {
+                    filas.push({
+                        tipo: "log_produccion",
+                        orden: ordenNo,
+                        producto: textareas[0].value,
+                        especie: textareas[1].value,
+                        cantidad: textareas[5].value
+                    });
+                }
+            });
+
+            if(filas.length === 0) return;
+            
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, { 
+                    method: "POST", 
+                    mode: 'no-cors', 
+                    body: JSON.stringify({ tipo: "guardar_bulk", sheetName: "ORDENES LOG", filas }) 
+                });
+            } catch (e) { console.warn("Sincronización con la nube fallida, se guardó solo localmente."); }
         }
 
         function cargarOrden(orden) {
