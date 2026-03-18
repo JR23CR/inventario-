@@ -111,8 +111,8 @@
         }
         .delivery-letter-container {
             width: 8in; /* Reducir ligeramente el ancho para asegurar que quepa en la página Letter con márgenes */
-            height: 10.5in;
-            margin: 0 auto; /* Centrar horizontalmente, quitar margen vertical para evitar salto de hoja */
+            height: 9.8in;
+            margin: 0 auto !important; /* Centrar horizontalmente, quitar margen vertical para evitar salto de hoja */
             padding: 0.35in 0.5in; /* Reducir padding interno para más espacio de contenido */
             box-sizing: border-box;
             font-family: 'Arial', sans-serif;
@@ -145,15 +145,6 @@
         }
         .dl-content { flex-grow: 1; margin-top: 20px; }
         .dl-footer-text { font-size: 8pt; text-align: center; margin-top: 20px; color: #666; }
-
-        @media print {
-            #printable-delivery-letter-area {
-                position: absolute;
-                left: 0;
-                visibility: visible !important;
-                display: block !important;
-            }
-        }
     </style>
 </head>
 <body class="bg-gray-50 text-slate-800">
@@ -294,7 +285,11 @@
             Bluetooth: (p) => <LucideIcon name="bluetooth" {...p} />,
             AlertTriangle: (p) => <LucideIcon name="alert-triangle" {...p} />,
             CheckCircle2: (p) => <LucideIcon name="check-circle-2" {...p} />,
-            Tag: (p) => <LucideIcon name="tag" {...p} />,
+            ChevronRight: (p) => <LucideIcon name="chevron-right" {...p} />,
+            Inbox: (p) => <LucideIcon name="inbox" {...p} />,
+            Trash2: (p) => <LucideIcon name="trash-2" {...p} />,
+            Calendar: (p) => <LucideIcon name="calendar" {...p} />,
+            Clock: (p) => <LucideIcon name="clock" {...p} />,
             Barcode: (p) => <LucideIcon name="barcode" {...p} />,
             ScanLine: (p) => <LucideIcon name="scan-line" {...p} />,
             X: (p) => <LucideIcon name="x" {...p} />,
@@ -322,8 +317,8 @@
         };
 
         const { 
-            Package, Search, Plus, RefreshCw, Printer, Bluetooth, BluetoothConnected, 
-            AlertTriangle, CheckCircle2, Tag, Barcode, ScanLine, X, User, 
+            Package, Search, Plus, RefreshCw, Printer, Bluetooth, ChevronRight, Inbox, Trash2, Calendar, Clock,
+            AlertTriangle, CheckCircle2, Barcode, ScanLine, X, User, 
             MapPin, Download, LayoutDashboard, Warehouse, Home, ArrowRightLeft,
             ArrowUpRight, ArrowDownLeft, History, Settings, UserCheck, Box, Layers,
             Briefcase, FileText, Split, Merge, ArrowLeft, CheckSquare, Edit
@@ -387,6 +382,24 @@
         const BODEGAS_LIST = ["OFICINA", "CASA BLANCA", "BODEGA CENTRAL"];
         const CATEGORIES_LIST = ["HERRAMIENTA ELÉCTRICA", "HERRAMIENTA MANUAL", "CONSUMIBLES", "EPP / SEGURIDAD", "REPUESTOS", "MOBILIARIO", "OTRO"];
 
+        // --- HELPERS GLOBALES ---
+        const formatDate = (val) => {
+            if (!val || val === 'SIN FECHA' || val === 'NO REGISTRADA') return '';
+            const d = new Date(val);
+            return isNaN(d.getTime()) ? val : d.toLocaleDateString('es-GT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        };
+
+        const formatMeasurement = (val) => {
+            if (!val) return '';
+            if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) {
+                const [year, month, day] = val.split('T')[0].split('-');
+                return `${parseInt(day)}/${parseInt(month)}`;
+            }
+            return val;
+        };
+
+        const isStored = (manager) => manager === 'BODEGA' || BODEGAS_LIST.includes(manager);
+
         function App() {
             const [inventory, setInventory] = useState([]);
             const [loading, setLoading] = useState(false);
@@ -395,9 +408,11 @@
             const [characteristic, setCharacteristic] = useState(null);
             const [nextId, setNextId] = useState(`${PREFIX}-00000`);
             const [isScannerMode, setIsScannerMode] = useState(false);
+            const [activeTab, setActiveTab] = useState('inventory'); 
+            const [isAddModalOpen, setIsAddModalOpen] = useState(false);
             
             // Filtros
-            const [viewMode, setViewMode] = useState('BODEGA'); 
+            const [viewMode, setViewMode] = useState('BODEGA'); // BODEGA, ASIGNADO, BAJO_STOCK, ALL
             const [activeAsset, setActiveAsset] = useState(null); 
             
             // --- ESTADOS PARA SELECCIÓN MÚLTIPLE ---
@@ -414,17 +429,6 @@
             const [historySearch, setHistorySearch] = useState('');
             const [historyData, setHistoryData] = useState([]);
 
-            // --- HELPER: Formatear Medidas (Recuperar fracción de fecha ISO) ---
-            const formatMeasurement = (val) => {
-                if (!val) return '';
-                // Si es fecha ISO (ej: 2026-04-03T...), extraer Día/Mes para mostrar como fracción (ej: 3/4)
-                if (typeof val === 'string' && val.match(/^\d{4}-\d{2}-\d{2}T/)) {
-                    const [year, month, day] = val.split('T')[0].split('-');
-                    return `${parseInt(day)}/${parseInt(month)}`;
-                }
-                return val;
-            };
-
             const searchInputRef = useRef(null);
             const actionInputRef = useRef(null);
 
@@ -436,7 +440,7 @@
             });
 
             const [actionForm, setActionForm] = useState({
-                person: '', area: '', quantity: 1, notes: '', returnStatus: 'Activo', stockToAdd: 1
+                person: '', area: '', quantity: 1, notes: '', returnStatus: 'Activo', stockToAdd: 1, transferWarehouse: ''
             });
 
             // --- CARGA INICIAL (CON IDs INTERNOS) ---
@@ -444,28 +448,7 @@
                 if (APP_SCRIPT_URL) {
                     fetchData();
                 } else {
-                    setInventory([
-                        { 
-                            id: 1, inventoryNum: 'GB-00001', brand: 'STANLEY', description: 'RELES DE MERCURIO', 
-                            manager: 'BODEGA', area: 'ALMACENAMIENTO', warehouse: 'OFICINA', status: 'Activo', 
-                            history: '01/02/2026: Ingreso Inicial |', quantity: 10, 
-                            category: 'REPUESTOS'
-                        },
-                        { 
-                            id: 2, inventoryNum: 'GB-00002', brand: 'BOSCH', description: 'TALADRO PERCUTOR', 
-                            manager: 'ELDER GARCIA', area: 'TALLER MANTENIMIENTO', warehouse: 'EN CAMPO', status: 'Activo', 
-                            history: '01/01/2026: Ingreso | 05/01/2026: Entregado a ELDER GARCIA |', quantity: 1,
-                            category: 'HERRAMIENTA ELÉCTRICA'
-                        }
-                    ]);
-                    setNextId(`${PREFIX}-00003`);
                 }
-            }, []);
-
-            useEffect(() => {
-                const handleEsc = (e) => { if (e.key === 'Escape') setActiveAsset(null); };
-                window.addEventListener('keydown', handleEsc);
-                return () => window.removeEventListener('keydown', handleEsc);
             }, []);
 
             useEffect(() => {
@@ -476,7 +459,7 @@
             const fetchData = async () => {
                 setLoading(true);
                 try {
-                    const response = await fetch(APP_SCRIPT_URL + "?sheet=ACTIVOS");
+                    const response = await fetch(`${APP_SCRIPT_URL}?sheet=ACTIVOS`);
                     const data = await response.json();
                     const dataWithIds = data.map((item, idx) => ({...item, id: item.id || Date.now() + idx}));
                     setInventory(dataWithIds);
@@ -497,7 +480,7 @@
 
             // --- EFECTO: CALCULAR HISTORIAL ---
             useEffect(() => {
-                if (isHistoryModalOpen) {
+                if (isHistoryModalOpen || activeTab === 'history') {
                     const allEvents = inventory.flatMap(item => {
                         if (!item.history) return [];
                         return item.history.split('|')
@@ -543,9 +526,7 @@
                     });
                     setHistoryData(filtered);
                 }
-            }, [inventory, isHistoryModalOpen, historySearch]);
-
-            const isStored = (manager) => manager === 'BODEGA' || BODEGAS_LIST.includes(manager);
+            }, [inventory, isHistoryModalOpen, historySearch, activeTab]);
 
             // --- LÓGICA DE IMPRESIÓN ---
             const connectPrinter = async () => {
@@ -1039,7 +1020,7 @@
                 
                 if (type === 'ASSIGN') {
                     targetManager = (actionForm.person || '').toUpperCase();
-                    targetArea = DEFAULT_ASSIGNMENTS[targetManager] || (actionForm.area || '').toUpperCase();
+                    targetArea = (actionForm.area || DEFAULT_ASSIGNMENTS[targetManager] || '').toUpperCase();
                     targetWarehouse = 'EN CAMPO';
                     targetStatus = activeAsset.status;
                     targetDateMalEstado = activeAsset.dateMalEstado;
@@ -1181,11 +1162,14 @@
             };
 
             const stats = useMemo(() => {
+                const available = inventory.filter(i => isStored(i.manager));
+                const assigned = inventory.filter(i => !isStored(i.manager));
                 return {
-                    total: inventory.length,
-                    bodega: inventory.filter(i => isStored(i.manager)).length,
-                    asignado: inventory.filter(i => !isStored(i.manager)).length,
-                    bajoStock: inventory.filter(i => isStored(i.manager) && i.quantity <= LOW_STOCK_THRESHOLD).length,
+                    total: inventory.reduce((acc, curr) => acc + (parseInt(curr.quantity) || 0), 0),
+                    bodega: available.length,
+                    asignado: assigned.length,
+                    bajoStock: available.filter(i => i.quantity <= LOW_STOCK_THRESHOLD).length,
+                    items: inventory.length
                 };
             }, [inventory]);
 
@@ -1196,6 +1180,7 @@
                     if (viewMode === 'BODEGA') return matchSearch && isStored(item.manager);
                     if (viewMode === 'ASIGNADO') return matchSearch && !isStored(item.manager);
                     if (viewMode === 'BAJO_STOCK') return matchSearch && isStored(item.manager) && item.quantity <= LOW_STOCK_THRESHOLD;
+                    if (viewMode === 'ALL') return matchSearch;
                     return matchSearch;
                 }).reverse();
             }, [inventory, searchTerm, viewMode]);
@@ -1215,444 +1200,106 @@
             };
 
             return (
-                <div className="min-h-screen bg-gray-50 text-slate-800 font-sans pb-20 selection:bg-blue-500 selection:text-white">
-                    <nav className="bg-white border-b border-gray-200 p-4 sticky top-0 z-40 shadow-sm">
-                        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-                            <div className="flex items-center gap-6 w-full md:w-auto">
-                                <img src="logo-giborv2 (2).png" alt="GIBOR S.A. Logo" className="h-16 w-auto object-contain"></img>
-                                
-                                <div className="flex gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar">
-                                    <button onClick={() => setViewMode('BODEGA')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'BODEGA' ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
-                                        <Warehouse size={14} /> Bodega <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.bodega}</span>
-                                    </button>
-                                    <button onClick={() => setViewMode('ASIGNADO')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'ASIGNADO' ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
-                                        <UserCheck size={14} /> Asignados <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.asignado}</span>
-                                    </button>
-                                    <button onClick={() => setViewMode('BAJO_STOCK')} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold uppercase transition-all border whitespace-nowrap ${viewMode === 'BAJO_STOCK' ? 'bg-amber-500 text-white border-amber-500 shadow-md' : 'bg-white text-slate-600 border-gray-200 hover:bg-gray-50'}`}>
-                                        <AlertTriangle size={14} /> Alertas <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] ml-1">{stats.bajoStock}</span>
-                                    </button>
-                                </div>
+                <div className="flex h-screen bg-slate-50 overflow-hidden font-sans text-slate-900 selection:bg-blue-500 selection:text-white">
+                    
+                    {/* --- SIDEBAR --- */}
+                    <aside className="w-20 lg:w-64 bg-slate-900 flex flex-col p-4 text-white z-50 transition-all">
+                        <div className="flex items-center gap-3 mb-10 lg:px-2">
+                            <div className="bg-blue-600 p-2.5 rounded-2xl shadow-lg">
+                                <Package size={24} />
                             </div>
-                            <div className="flex gap-3 w-full md:w-auto justify-end">
-                                <a href="index.html" class="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-slate-600 rounded-lg text-xs font-bold uppercase transition-all border border-gray-200 shadow-sm">
-                                    <ArrowLeft size={16} /> <span className="hidden sm:inline">Inicio</span>
-                                </a>
-                                <button onClick={() => setIsHistoryModalOpen(true)} className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-slate-600 rounded-lg text-xs font-bold uppercase transition-all border border-gray-200 shadow-sm">
-                                    <History size={16} /> <span className="hidden sm:inline">Historial Personal</span>
-                                </button>
-                                <button onClick={connectPrinter} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all border ${printer ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-gray-200 text-slate-600 hover:bg-gray-50'}`}>
-                                    <Bluetooth size={16} /> {printer ? 'CONECTADO' : 'SYNC'}
-                                </button>
+                            <div className="hidden lg:block">
+                                <h1 className="font-black text-lg leading-tight tracking-tight">GIBOR S.A.</h1>
+                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Activos</p>
                             </div>
                         </div>
-                    </nav>
+                        <nav className="flex-1 space-y-2">
+                            <SideItem icon={<LayoutDashboard size={20}/>} label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                            <SideItem icon={<Box size={20}/>} label="Inventario" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+                            <SideItem icon={<History size={20}/>} label="Historial" active={activeTab === 'history'} onClick={() => setActiveTab('history')} />
+                        </nav>
+                        <div className="mt-auto">
+                            <SideItem icon={<ArrowLeft size={20}/>} label="Volver al Inicio" onClick={() => window.location.href = 'index.html'} />
+                        </div>
+                    </aside>
 
-                    <main className="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-                        {/* ... (Rest of the UI code remains the same as provided, just wrapped in this structure) ... */}
-                        <section className="lg:col-span-3 space-y-6">
-                            <div className="bg-white p-5 rounded-3xl border border-gray-200 shadow-lg">
-                                <h2 className="text-sm font-black text-slate-500 uppercase mb-4 flex items-center gap-2">
-                                    <Plus size={16} className="text-blue-600" /> Alta de Activo
-                                </h2>
-                                <form onSubmit={handleCreate} className="space-y-3">
-                                    <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-center flex justify-between items-center px-4">
-                                        <span className="text-[10px] font-bold text-slate-500">ID</span>
-                                        <span className="font-mono font-black text-xl text-blue-600">{nextId}</span>
-                                    </div>
-                                    <input list="categories-list" type="text" placeholder="CATEGORÍA" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                    <datalist id="categories-list">
-                                        {CATEGORIES_LIST.map(c => <option key={c} value={c} />)}
-                                    </datalist>
-                                    <input type="text" placeholder="DESCRIPCIÓN" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                    <div className="grid grid-cols-3 gap-2">
-                                        <input type="text" placeholder="MARCA" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                        <input type="text" placeholder="MEDIDA" value={formData.measurement} onChange={e => setFormData({...formData, measurement: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                        <input type="text" placeholder="COLOR" value={formData.color} onChange={e => setFormData({...formData, color: e.target.value.toUpperCase()})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-3 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-2">
-                                        <select value={formData.warehouse} onChange={e => setFormData({...formData, warehouse: e.target.value})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-2.5 font-bold uppercase outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
-                                            {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
-                                        </select>
-                                        <input type="number" min="1" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="bg-gray-50 border border-gray-200 text-slate-700 text-xs rounded-lg p-2.5 font-bold text-center outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
-                                    </div>
-                                    
-                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-200">
-                                        {printer ? <Printer size={16}/> : null} Registrar e Imprimir
-                                    </button>
-                                </form>
-                            </div>
-                        </section>
-
-                        <section className="lg:col-span-9 space-y-4">
-                            {/* ... Search Bar ... */}
-                            <div className="bg-white p-2 rounded-2xl border border-gray-200 flex items-center gap-2 shadow-sm">
-                                <div className={`flex items-center gap-2 px-4 py-3 rounded-xl transition-all ${isScannerMode ? 'bg-blue-600 text-white' : 'bg-gray-100 text-slate-400'}`}>
-                                    <ScanLine size={20} className={isScannerMode ? 'animate-pulse' : ''} />
+                    {/* --- MAIN CONTENT --- */}
+                    <main className="flex-1 flex flex-col relative overflow-hidden">
+                        <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 shrink-0 z-20">
+                            <div className="flex-1 max-w-2xl">
+                                <div className="relative">
+                                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                    <input 
+                                        type="text" 
+                                        placeholder="Buscar activo..."
+                                        className="w-full pl-12 pr-4 py-3 bg-slate-100 rounded-2xl outline-none text-sm font-medium focus:ring-4 focus:ring-blue-50 transition-all uppercase"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                    />
                                 </div>
-                                <input 
-                                    ref={searchInputRef}
-                                    type="text" 
-                                    placeholder={isScannerMode ? "MODO ACTIVO: ESCANEE CÓDIGO..." : "BUSCAR ACTIVO, MARCA, MEDIDA..."}
-                                    value={searchTerm}
-                                    onChange={handleSearch}
-                                    className="flex-1 bg-transparent border-none outline-none text-slate-700 font-bold placeholder:text-slate-400 uppercase"
-                                />
-                                <button onClick={exportToCSV} className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-lg text-xs font-black text-slate-600 hover:bg-gray-50 border border-gray-200 uppercase shadow-sm">
-                                    <Download size={14}/> Reporte
+                            </div>
+                            <div className="flex items-center gap-4 ml-8">
+                                <button onClick={() => setIsScannerMode(!isScannerMode)} className={`p-3 rounded-2xl transition-all ${isScannerMode ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`} title="Modo Escáner">
+                                    <ScanLine size={24} />
                                 </button>
-                                <button onClick={() => setIsScannerMode(!isScannerMode)} className="px-4 py-2 bg-white rounded-lg text-xs font-black text-slate-600 hover:bg-gray-50 border border-gray-200 uppercase shadow-sm">
-                                    {isScannerMode ? 'Stop Scan' : 'Escanear'}
+                                <button onClick={() => setIsAddModalOpen(true)} className="bg-blue-600 text-white px-6 py-3 rounded-2xl font-black text-xs uppercase hover:bg-blue-700 shadow-xl flex items-center gap-2 transition-all">
+                                    <Plus size={18} /> Nuevo
                                 </button>
                             </div>
+                        </header>
 
-                            {/* ... Table ... */}
-                            <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden shadow-lg min-h-[500px]">
-                                <div className="p-4 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-                                    <h3 className="text-xs font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                                        <Layers size={14} /> Inventario General
-                                    </h3>
-                                    <span className="text-[10px] font-bold text-slate-500 bg-white px-2 py-1 rounded border border-gray-200">
-                                        VISTA: {viewMode}
-                                    </span>
-                                </div>
+                        {/* --- FILTROS DE VISTA (Solo en Tab Inventario) --- */}
+                        {activeTab === 'inventory' && (
+                            <div className="bg-white border-b border-slate-200 px-8 py-4 flex items-center gap-2 shrink-0 overflow-x-auto no-scrollbar">
+                                <FilterTab label="Disponibles" count={stats.bodega} active={viewMode === 'BODEGA'} onClick={() => setViewMode('BODEGA')} icon={<Inbox size={16}/>} />
+                                <FilterTab label="Asignados" count={stats.asignado} active={viewMode === 'ASIGNADO'} onClick={() => setViewMode('ASIGNADO')} icon={<User size={16}/>} />
+                                <FilterTab label="Alertas" count={stats.bajoStock} active={viewMode === 'BAJO_STOCK'} onClick={() => setViewMode('BAJO_STOCK')} icon={<AlertTriangle size={16}/>} />
+                                <FilterTab label="Ver Todo" count={stats.items} active={viewMode === 'ALL'} onClick={() => setViewMode('ALL')} icon={<Layers size={16}/>} />
                                 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left">
-                                        <thead className="text-[10px] font-black text-slate-500 uppercase bg-gray-50">
-                                            <tr>
-                                                <th className="px-2 py-3 w-8">
-                                                    <input type="checkbox" onChange={handleSelectAll} checked={filteredList.length > 0 && selectedIds.size === filteredList.length} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
-                                                </th>
-                                                <th className="px-2 py-3">Activo</th>
-                                                <th className="px-2 py-3">Marca</th>
-                                                <th className="px-2 py-3">Medida</th>
-                                                <th className="px-2 py-3">Color</th>
-                                                <th className="px-2 py-3">Categoría</th>
-                                                <th className="px-2 py-3">Ubicación</th>
-                                                <th className="px-2 py-3 text-center">Estado</th>
-                                                <th className="px-2 py-3 text-right">Acción</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-gray-100">
-                                            {filteredList.map((item) => {
-                                                const inStore = isStored(item.manager);
-                                                return (
-                                                    <tr key={item.id} className="hover:bg-blue-50/50 transition-all group">
-                                                        <td className="px-2 py-3">
-                                                            <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelection(item.id)} className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4" />
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            <div className="flex items-center gap-3">
-                                                                <div className={`w-2 h-12 rounded-full ${inStore ? 'bg-blue-500' : 'bg-indigo-500'} shadow-sm`}></div>
-                                                                <div>
-                                                                    <span className="font-mono font-black text-blue-600 text-sm block tracking-wider">{item.inventoryNum}</span>
-                                                                    <span className={`font-bold text-slate-700 text-xs block uppercase max-w-[150px] truncate ${item.quantity <= LOW_STOCK_THRESHOLD && inStore ? 'text-red-600' : ''}`} title={item.description}>{item.description}</span>
-                                                                    <span className="text-xs font-black text-slate-500 uppercase mt-1 block">{item.quantity} UNID</span>
-                                                                </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            <span className="text-xs font-bold text-slate-600 uppercase">{item.brand}</span>
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            <span className="text-xs font-bold text-slate-600 uppercase">{formatMeasurement(item.measurement)}</span>
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            <span className="text-xs font-bold text-slate-600 uppercase">{item.color}</span>
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            <div className="flex items-center gap-1 text-[10px] font-bold text-slate-500 uppercase"><Briefcase size={10}/> {item.category}</div>
-                                                        </td>
-                                                        <td className="px-2 py-3">
-                                                            {inStore ? (
-                                                                <div className="flex items-center gap-2">
-                                                                    <Warehouse size={16} className="text-slate-400" />
-                                                                    <div>
-                                                                        <div className="font-black text-slate-600 text-[11px] uppercase">{item.warehouse}</div>
-                                                                    </div>
-                                                                </div>
-                                                            ) : (
-                                                                <div className="flex items-center gap-2">
-                                                                    <User size={16} className="text-indigo-500" />
-                                                                    <div>
-                                                                        <div className="font-black text-indigo-600 text-[11px] uppercase max-w-[100px] truncate" title={item.manager}>{item.manager}</div>
-                                                                        <div className="text-[9px] text-slate-500 font-bold uppercase">{item.area}</div>
-                                                                    </div>
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-2 py-3 text-center whitespace-nowrap">
-                                                            <span className={`px-2 py-1 rounded text-[9px] font-black uppercase ${item.status === 'Activo' ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-red-100 text-red-700 border border-red-200'}`}>
-                                                                {item.status}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-2 py-3 text-right whitespace-nowrap">
-                                                            <button onClick={() => printLabelPC(item)} className="bg-white hover:bg-gray-50 text-slate-500 p-2 rounded-lg transition-all border border-gray-200 hover:border-blue-300 shadow-sm mr-2" title="Reimprimir Etiqueta">
-                                                                <Printer size={16} />
-                                                            </button>
-                                                            <button onClick={() => openAssetControl(item)} className="bg-white hover:bg-blue-50 text-slate-600 px-3 py-2 rounded-lg text-[10px] font-bold uppercase transition-all border border-gray-200 hover:border-blue-300 shadow-sm">
-                                                                Gestionar
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* --- MODAL --- */}
-                        {activeAsset && (
-                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-2xl border border-gray-200 overflow-hidden animate-in fade-in zoom-in duration-200">
-                                    
-                                    <div className="bg-gray-50 p-6 flex justify-between items-start border-b border-gray-200">
-                                        <div className="flex gap-4">
-                                            <div className={`p-4 rounded-2xl ${isStored(activeAsset.manager) ? 'bg-blue-600' : 'bg-indigo-600'}`}>
-                                                {isStored(activeAsset.manager) ? <Warehouse size={32} className="text-white"/> : <UserCheck size={32} className="text-white"/>}
-                                            </div>
-                                            <div>
-                                                <h2 className="text-2xl font-black text-slate-800 tracking-tight">{activeAsset.inventoryNum}</h2>
-                                                <p className="text-slate-500 font-bold uppercase text-sm max-w-sm truncate" title={activeAsset.description}>{activeAsset.description}</p>
-                                                <div className="flex gap-2 mt-2">
-                                                    <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">{activeAsset.brand}</span>
-                                                    {activeAsset.measurement && <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">{activeAsset.measurement}</span>}
-                                                    <span className="text-[10px] bg-white border border-gray-200 px-2 py-0.5 rounded text-slate-600 font-bold uppercase">STOCK: {activeAsset.quantity}</span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            {!isEditing && (
-                                                <button onClick={startEditing} className="p-2 hover:bg-blue-100 text-blue-600 rounded-full transition-colors" title="Editar Detalles"><Icons.Edit size={20}/></button>
-                                            )}
-                                            <button onClick={() => setActiveAsset(null)} className="p-2 hover:bg-gray-200 rounded-full text-slate-400 transition-colors"><X/></button>
-                                        </div>
-                                    </div>
-
-                                    {isEditing ? (
-                                        <div className="p-6 space-y-4 bg-white">
-                                            <h3 className="font-black text-slate-600 uppercase text-sm border-b pb-2">Editar Información del Activo</h3>
-                                            <div className="grid grid-cols-1 gap-4">
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Descripción</label>
-                                                    <input type="text" value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
-                                                </div>
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Marca</label>
-                                                        <input type="text" value={editForm.brand} onChange={e => setEditForm({...editForm, brand: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Medida</label>
-                                                        <input type="text" value={editForm.measurement} onChange={e => setEditForm({...editForm, measurement: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
-                                                    </div>
-                                                    <div>
-                                                        <label className="text-[10px] font-bold text-slate-500 uppercase">Color</label>
-                                                        <input type="text" value={editForm.color} onChange={e => setEditForm({...editForm, color: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
-                                                    </div>
-                                                </div>
-                                                <div>
-                                                    <label className="text-[10px] font-bold text-slate-500 uppercase">Categoría</label>
-                                                    <input list="categories-list-edit" value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value.toUpperCase()})} className="w-full bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-bold uppercase outline-none focus:border-blue-500" />
-                                                    <datalist id="categories-list-edit">
-                                                        {CATEGORIES_LIST.map(c => <option key={c} value={c} />)}
-                                                    </datalist>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-end gap-3 pt-4">
-                                                <button onClick={() => setIsEditing(false)} className="px-6 py-3 rounded-xl border border-gray-200 text-slate-600 font-bold text-xs uppercase hover:bg-gray-50">Cancelar</button>
-                                                <button onClick={handleUpdateAsset} className="px-6 py-3 rounded-xl bg-blue-600 text-white font-bold text-xs uppercase hover:bg-blue-700 shadow-lg shadow-blue-200">Guardar Cambios</button>
-                                            </div>
-                                        </div>
-                                    ) : (
-                                    <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-8">
-                                        
-                                        <div className="space-y-4 border-r border-gray-100 pr-4">
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Ubicación Actual</label>
-                                                <p className="text-lg font-bold text-slate-800 uppercase flex items-center gap-2 max-w-[200px] truncate" title={activeAsset.manager}>
-                                                    {isStored(activeAsset.manager) ? <Warehouse size={16} className="text-blue-600"/> : <User size={16} className="text-indigo-600"/>}
-                                                    {activeAsset.manager}
-                                                </p>
-                                                <p className="text-xs text-slate-500 uppercase font-bold pl-6">{isStored(activeAsset.manager) ? activeAsset.warehouse : activeAsset.area}</p>
-                                            </div>
-
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Historial Reciente</label>
-                                                <div className="mt-2 text-[10px] text-slate-500 font-mono bg-gray-50 p-3 rounded-xl border border-gray-200 h-32 overflow-y-auto custom-scrollbar">
-                                                    {activeAsset.history ? activeAsset.history.split('|').map((log, i) => (
-                                                        <div key={i} className="mb-1 border-b border-gray-200 pb-1">{log}</div>
-                                                    )).reverse() : 'Sin historial registrado.'} {/* Mostrar el historial más reciente primero */}
-                                                </div>
-                                            </div>
-                                            
-                                            <div className="flex gap-2 mt-4">
-                                                <button onClick={() => printLabelPC(activeAsset)} className="flex-1 bg-white hover:bg-gray-50 text-slate-700 border border-gray-200 py-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 transition-all shadow-sm">
-                                                    <Printer size={16}/> PC
-                                                </button>
-                                                <button onClick={() => printLabel(activeAsset)} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white border border-slate-800 py-3 rounded-xl text-xs font-black uppercase flex items-center justify-center gap-2 transition-all shadow-sm">
-                                                    <Bluetooth size={16}/> BT
-                                                </button>
-                                            </div>
-                                        </div>
-
-                                        <div className="space-y-4">
-                                            <label className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                                                ¿QUÉ DESEA HACER? (MAX: {activeAsset.quantity})
-                                            </label>
-
-                                            {isStored(activeAsset.manager) ? (
-                                                <div className="space-y-3">
-                                                    <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100">
-                                                        <h4 className="text-blue-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowUpRight size={16}/> Asignar a Personal</h4>
-                                                        
-                                                        <div className="flex gap-2 mb-2">
-                                                            <input 
-                                                                type="number" 
-                                                                min="1" 
-                                                                max={activeAsset.quantity}
-                                                                className="w-20 bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-blue-500"
-                                                                value={actionForm.quantity}
-                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
-                                                            />
-                                                            <input 
-                                                                ref={actionInputRef}
-                                                                list="staff-list" 
-                                                                placeholder="BUSCAR PERSONA (EJ: ELDER)"
-                                                                className="flex-1 bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-blue-500"
-                                                                value={actionForm.person}
-                                                                onChange={e => setActionForm({...actionForm, person: e.target.value})}
-                                                            />
-                                                        </div>
-
-                                                        <input 
-                                                            placeholder="ÁREA (AUTOMÁTICA O MANUAL)"
-                                                            className="w-full bg-white border border-blue-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-blue-500 mb-2"
-                                                            value={DEFAULT_ASSIGNMENTS[actionForm.person.toUpperCase()] || actionForm.area}
-                                                            onChange={e => setActionForm({...actionForm, area: e.target.value})}
-                                                        />
-                                                        <button 
-                                                            onClick={() => handleMovement('ASSIGN')}
-                                                            disabled={!actionForm.person}
-                                                            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-200"
-                                                        >
-                                                            Confirmar Entrega
-                                                        </button>
-                                                    </div>
-                                                    
-                                                    <div className="bg-orange-50 p-4 rounded-2xl border border-orange-100 mt-2">
-                                                        <h4 className="text-orange-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowRightLeft size={16}/> Traslado de Bodega</h4>
-                                                        <div className="flex gap-2 mb-2">
-                                                            <input 
-                                                                type="number" 
-                                                                min="1" 
-                                                                max={activeAsset.quantity}
-                                                                className="w-20 bg-white border border-orange-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-orange-500"
-                                                                value={actionForm.quantity}
-                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
-                                                            />
-                                                            <select 
-                                                                className="flex-1 bg-white border border-orange-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-orange-500"
-                                                                value={actionForm.transferWarehouse}
-                                                                onChange={e => setActionForm({...actionForm, transferWarehouse: e.target.value})} 
-                                                            >
-                                                                <option value="">SELECCIONAR DESTINO...</option>
-                                                                {BODEGAS_LIST.filter(b => b !== activeAsset.warehouse).map(b => <option key={b} value={b}>{b}</option>)}
-                                                            </select>
-                                                        </div>
-                                                        <button 
-                                                            onClick={() => handleMovement('TRANSFER')}
-                                                            disabled={!actionForm.transferWarehouse}
-                                                            className="w-full bg-orange-600 hover:bg-orange-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-orange-200"
-                                                        >
-                                                            Confirmar Traslado
-                                                        </button>
-                                                    </div>
-
-                                                    <div className="bg-green-50 p-4 rounded-2xl border border-green-100 mt-2">
-                                                        <h4 className="text-green-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><Plus size={16}/> Reponer Stock</h4>
-                                                        <div className="flex gap-2">
-                                                            <input 
-                                                                type="number" min="1"
-                                                                className="w-24 bg-white border border-green-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-green-500"
-                                                                value={actionForm.stockToAdd}
-                                                                onChange={e => setActionForm({...actionForm, stockToAdd: e.target.value})}
-                                                            />
-                                                            <button 
-                                                                onClick={handleAddStock}
-                                                                className="flex-1 bg-green-600 hover:bg-green-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all shadow-lg shadow-green-200"
-                                                            >
-                                                                Agregar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="space-y-3">
-                                                    <div className="bg-indigo-50 p-4 rounded-2xl border border-indigo-100">
-                                                        <h4 className="text-indigo-700 font-black uppercase text-sm mb-2 flex items-center gap-2"><ArrowDownLeft size={16}/> Devolución a Bodega</h4>
-                                                        
-                                                        <div className="flex gap-2 mb-2">
-                                                            <input 
-                                                                type="number" 
-                                                                min="1" 
-                                                                max={activeAsset.quantity}
-                                                                className="w-20 bg-white border border-indigo-200 rounded-xl p-3 text-slate-800 text-xs font-bold text-center outline-none focus:border-indigo-500"
-                                                                value={actionForm.quantity}
-                                                                onChange={e => setActionForm({...actionForm, quantity: e.target.value})}
-                                                            />
-                                                            <select 
-                                                                className="flex-1 bg-white border border-indigo-200 rounded-xl p-3 text-slate-800 text-xs font-bold uppercase outline-none focus:border-indigo-500"
-                                                                onChange={e => setActionForm({...actionForm, area: e.target.value})} 
-                                                            >
-                                                                {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
-                                                            </select>
-                                                        </div>
-
-                                                        <div className="mb-2">
-                                                            <label className="text-[9px] font-bold text-indigo-600 uppercase block mb-1">Estado de Retorno:</label>
-                                                            <select 
-                                                                className={`w-full border rounded-xl p-2 text-xs font-bold uppercase outline-none ${actionForm.returnStatus === 'Mal Estado' ? 'bg-red-50 border-red-200 text-red-700' : 'bg-white border-indigo-200 text-slate-800'}`}
-                                                                value={actionForm.returnStatus}
-                                                                onChange={e => setActionForm({...actionForm, returnStatus: e.target.value})}
-                                                            >
-                                                                <option value="Activo">Buen Estado</option>
-                                                                <option value="Mal Estado">Dañado / Mal Estado</option>
-                                                            </select>
-                                                        </div>
-
-                                                        <button 
-                                                            onClick={() => handleMovement('RETURN')}
-                                                            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-black py-3 rounded-xl uppercase text-xs tracking-widest transition-all shadow-lg shadow-indigo-200"
-                                                        >
-                                                            Confirmar Devolución
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones del Movimiento</label>
-                                                <textarea 
-                                                    placeholder="EJ: SE ENTREGA CON CABLE NUEVO..." 
-                                                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-3 text-slate-700 text-xs font-bold uppercase outline-none focus:border-slate-400 h-20 mt-1"
-                                                    value={actionForm.notes}
-                                                    onChange={e => setActionForm({...actionForm, notes: e.target.value})}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                    )}
+                                <div className="ml-auto flex items-center gap-3">
+                                    <button onClick={connectPrinter} className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all border ${printer ? 'bg-green-50 border-green-500 text-green-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                                        <Bluetooth size={16} /> {printer ? 'IMPRESORA LISTA' : 'SYNC BT'}
+                                    </button>
+                                    <button onClick={exportToCSV} className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl text-xs font-black text-slate-600 hover:bg-slate-50 border border-slate-200 uppercase shadow-sm">
+                                        <Download size={14}/> CSV
+                                    </button>
                                 </div>
                             </div>
                         )}
 
+                        {/* --- ÁREA DE CONTENIDO DINÁMICO --- */}
+                        <div className="flex-1 overflow-y-auto p-8 scroll-smooth custom-scrollbar">
+                            {activeTab === 'dashboard' ? (
+                                <DashboardView stats={stats} />
+                            ) : activeTab === 'history' ? (
+                                <HistoryView historyData={historyData} historySearch={historySearch} setHistorySearch={setHistorySearch} onPrint={printHistoryReport} />
+                            ) : (
+                                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-8 pb-24 animate-in fade-in duration-500">
+                                    {loading ? (
+                                        Array(8).fill(0).map((_, i) => <SkeletonCard key={i} />)
+                                    ) : (
+                                        filteredList.map(item => (
+                                            <AssetCard 
+                                                key={item.id} 
+                                                asset={item} 
+                                                isSelected={selectedIds.has(item.id)}
+                                                isStored={isStored(item.manager || item.RESPONSABLE)}
+                                                onSelect={(e) => {
+                                                    e.stopPropagation();
+                                                    toggleSelection(item.id);
+                                                }}
+                                                onClick={() => openAssetControl(item)} 
+                                                onPrintLetter={() => printDeliveryLetter(item, item.manager || item.RESPONSABLE, item.area || item.AREA || item.DEPARTAMENTO, item.quantity)}
+                                            />
+                                        ))
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* --- BARRA FLOTANTE DE ACCIÓN MASIVA --- */}
                         {selectedIds.size > 0 && (
-                            <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-6 z-50 animate-in fade-in slide-in-from-bottom-4">
+                            <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-4 rounded-3xl shadow-2xl flex items-center gap-6 z-50 animate-in fade-in slide-in-from-bottom-4">
                                 <div className="flex items-center gap-3">
                                     <div className="bg-blue-600 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm">
                                         {selectedIds.size}
@@ -1664,7 +1311,7 @@
                                     <CheckSquare size={16} /> Despachar Cargos
                                 </button>
                                 <button onClick={handleBulkPrint} className="bg-slate-700 text-white hover:bg-slate-600 px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center gap-2">
-                                    <Printer size={16} /> Imprimir Etiquetas
+                                    <Printer size={16} /> Etiquetas (PC)
                                 </button>
                                 <button onClick={() => setSelectedIds(new Set())} className="text-slate-400 hover:text-white transition-colors">
                                     <X size={20} />
@@ -1672,62 +1319,116 @@
                             </div>
                         )}
 
+                        {/* --- DRAWER DE GESTIÓN (REEMPLAZA MODAL) --- */}
+                        <AssetDrawer 
+                            asset={activeAsset} 
+                            isStored={activeAsset ? isStored(activeAsset.manager || activeAsset.RESPONSABLE) : false}
+                            onClose={() => setActiveAsset(null)} 
+                            onPrintPC={() => printLabelPC(activeAsset)}
+                            onPrintBT={() => printLabel(activeAsset)}
+                            onPrintLetter={() => printDeliveryLetter(activeAsset, activeAsset.manager || activeAsset.RESPONSABLE, activeAsset.area || activeAsset.AREA || activeAsset.DEPARTAMENTO, activeAsset.quantity)}
+                            actionForm={actionForm}
+                            setActionForm={setActionForm}
+                            handleMovement={handleMovement}
+                            handleAddStock={handleAddStock}
+                            isEditing={isEditing}
+                            setIsEditing={setIsEditing}
+                            editForm={editForm}
+                            setEditForm={setEditForm}
+                            handleUpdateAsset={handleUpdateAsset}
+                            startEditing={startEditing}
+                        />
+
+                        {/* --- MODAL DE ALTA --- */}
+                        {isAddModalOpen && (
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setIsAddModalOpen(false); }}>
+                                <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl border border-gray-200 w-full max-w-md animate-in zoom-in duration-200">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h2 className="text-sm font-black text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                                            <Plus size={16} className="text-blue-600" /> Alta de Activo
+                                        </h2>
+                                        <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X/></button>
+                                    </div>
+                                    <form onSubmit={handleCreate} className="space-y-4">
+                                        <div className="bg-blue-50 p-4 rounded-2xl border border-blue-100 text-center flex justify-between items-center px-6">
+                                            <span className="text-[10px] font-bold text-blue-400">SIGUIENTE ID</span>
+                                            <span className="font-mono font-black text-2xl text-blue-600">{nextId}</span>
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Categoría</label>
+                                            <input list="categories-list" type="text" placeholder="CATEGORÍA" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold uppercase outline-none focus:ring-4 focus:ring-blue-50 transition-all" />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase ml-2">Descripción</label>
+                                            <input type="text" placeholder="DESCRIPCIÓN DEL EQUIPO" value={formData.description} onChange={e => setFormData({...formData, description: e.target.value.toUpperCase()})} className="w-full bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold uppercase outline-none focus:ring-4 focus:ring-blue-50 transition-all" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input type="text" placeholder="MARCA" value={formData.brand} onChange={e => setFormData({...formData, brand: e.target.value.toUpperCase()})} className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold uppercase outline-none" />
+                                            <input type="text" placeholder="MEDIDA" value={formData.measurement} onChange={e => setFormData({...formData, measurement: e.target.value.toUpperCase()})} className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold uppercase outline-none" />
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <select value={formData.warehouse} onChange={e => setFormData({...formData, warehouse: e.target.value})} className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold uppercase outline-none">
+                                                {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                                            </select>
+                                            <input type="number" min="1" value={formData.quantity} onChange={e => setFormData({...formData, quantity: parseInt(e.target.value)})} className="bg-slate-50 border border-slate-200 text-slate-700 text-sm rounded-xl p-3.5 font-bold text-center outline-none" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-2xl text-xs uppercase tracking-widest transition-all shadow-xl shadow-blue-200">
+                                            Registrar e Imprimir
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        )}
+
                         {/* --- MODAL DE DESPACHO MASIVO --- */}
                         {isBulkModalOpen && (
-                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh]">
-                                    <div className="bg-slate-900 p-6 flex justify-between items-center">
+                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) setIsBulkModalOpen(false); }}>
+                                <div className="bg-white rounded-[3rem] shadow-2xl w-full max-w-4xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in duration-200">
+                                    <div className="bg-slate-900 p-8 flex justify-between items-center">
                                         <h2 className="text-xl font-black text-white flex items-center gap-3">
                                             <CheckSquare className="text-blue-400"/> Despacho Masivo de Cargos
                                         </h2>
-                                        <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-white"><X/></button>
+                                        <button onClick={() => setIsBulkModalOpen(false)} className="text-slate-400 hover:text-white p-2"><X size={24}/></button>
                                     </div>
                                     
                                     <div className="flex-1 overflow-hidden flex flex-col md:flex-row">
-                                        {/* Panel Izquierdo: Formulario */}
-                                        <div className="p-6 md:w-1/3 bg-gray-50 border-r border-gray-200 space-y-4 overflow-y-auto">
+                                        <div className="p-8 md:w-1/3 bg-slate-50 border-r border-slate-200 space-y-6 overflow-y-auto">
                                             <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Responsable (Quién recibe)</label>
-                                                <input list="staff-list" className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500" 
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Responsable</label>
+                                                <input list="staff-list" className="w-full mt-1 bg-white border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
                                                     value={bulkForm.person} onChange={e => setBulkForm({...bulkForm, person: e.target.value})} placeholder="BUSCAR PERSONA..." />
                                             </div>
                                             <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Área de Destino</label>
-                                                <input className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500" 
+                                                <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-2">Área de Destino</label>
+                                                <input className="w-full mt-1 bg-white border border-slate-200 rounded-2xl p-4 text-sm font-bold uppercase outline-none focus:ring-4 focus:ring-blue-100" 
                                                     value={DEFAULT_ASSIGNMENTS[bulkForm.person.toUpperCase()] || bulkForm.area} 
                                                     onChange={e => setBulkForm({...bulkForm, area: e.target.value})} placeholder="ÁREA..." />
                                             </div>
-                                            <div>
-                                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Observaciones Generales</label>
-                                                <textarea className="w-full mt-1 bg-white border border-gray-300 rounded-xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-500 h-24" 
-                                                    value={bulkForm.notes} onChange={e => setBulkForm({...bulkForm, notes: e.target.value})} placeholder="NOTAS PARA TODOS LOS ÍTEMS..." />
-                                            </div>
-                                            <button onClick={handleBulkSubmit} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-4 rounded-xl uppercase text-xs tracking-widest shadow-lg shadow-blue-200 transition-all">
-                                                Confirmar Despacho
+                                            <button onClick={handleBulkSubmit} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-5 rounded-2xl uppercase text-xs tracking-widest shadow-xl shadow-blue-200 transition-all">
+                                                Confirmar Entrega Masiva
                                             </button>
                                         </div>
 
-                                        {/* Panel Derecho: Lista de Ítems */}
-                                        <div className="p-6 md:w-2/3 overflow-y-auto bg-white">
-                                            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Ítems a Despachar ({selectedIds.size})</h3>
-                                            <div className="space-y-2">
+                                        <div className="p-8 md:w-2/3 overflow-y-auto bg-white custom-scrollbar">
+                                            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">Ítems Seleccionados ({selectedIds.size})</h3>
+                                            <div className="space-y-3">
                                                 {Array.from(selectedIds).map(id => {
                                                     const item = inventory.find(i => i.id === id);
                                                     if(!item) return null;
                                                     return (
-                                                        <div key={id} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 hover:border-blue-200 bg-gray-50/50 transition-all">
+                                                        <div key={id} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 bg-slate-50/50">
                                                             <div className="flex-1">
-                                                                <div className="font-bold text-slate-700 text-sm">{item.description}</div>
-                                                                <div className="text-[10px] text-slate-500 font-mono">{item.inventoryNum} • {item.brand}</div>
+                                                                <div className="font-black text-slate-800 text-sm uppercase">{item.description}</div>
+                                                                <div className="text-[10px] text-slate-400 font-mono font-bold mt-1 tracking-widest">{item.inventoryNum} • {item.brand}</div>
                                                             </div>
-                                                            <div className="flex items-center gap-2 bg-white px-2 py-1 rounded-lg border border-gray-200">
-                                                                <span className="text-[9px] font-bold text-slate-400">CANT:</span>
+                                                            <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-xl border border-slate-200 shadow-sm">
+                                                                <span className="text-[9px] font-black text-slate-400">CANT:</span>
                                                                 <input type="number" min="1" max={item.quantity} 
-                                                                    className="w-12 text-center font-bold text-sm outline-none text-blue-600"
+                                                                    className="w-12 text-center font-black text-sm outline-none text-blue-600"
                                                                     value={bulkQuantities[id] || 1}
                                                                     onChange={(e) => setBulkQuantities({...bulkQuantities, [id]: e.target.value})}
                                                                 />
-                                                                <span className="text-[9px] font-bold text-slate-400">/ {item.quantity}</span>
+                                                                <span className="text-[9px] font-black text-slate-300">/ {item.quantity}</span>
                                                             </div>
                                                         </div>
                                                     );
@@ -1738,89 +1439,358 @@
                                 </div>
                             </div>
                         )}
-
-                        {/* --- HISTORIAL PERSONAL MODAL --- */}
-                        {isHistoryModalOpen && (
-                            <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-                                <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl border border-gray-200 overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in duration-200">
-                                    <div className="bg-slate-900 p-6 flex justify-between items-center">
-                                        <h2 className="text-xl font-black text-white flex items-center gap-3">
-                                            <History className="text-blue-400"/> Historial de Asignaciones
-                                        </h2>
-                                        <button onClick={printHistoryReport} className="ml-auto mr-4 bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg text-xs font-bold uppercase flex items-center gap-2">
-                                            <Printer size={16}/> Imprimir Reporte
-                                        </button>
-                                        <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-white"><X/></button>
-                                    </div>
-                                    
-                                    <div className="p-6 bg-gray-50 border-b border-gray-200">
-                                        <div className="relative">
-                                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
-                                            <input 
-                                                type="text" 
-                                                placeholder="BUSCAR PERSONA (EJ: ELDER GARCIA)..." 
-                                                className="w-full pl-12 pr-4 py-4 rounded-xl border border-gray-300 focus:ring-2 focus:ring-blue-500 outline-none font-bold uppercase text-slate-700"
-                                                value={historySearch}
-                                                onChange={e => setHistorySearch(e.target.value.toUpperCase())}
-                                                autoFocus
-                                            />
-                                        </div>
-                                    </div>
-
-                                    <div className="flex-1 overflow-y-auto p-6 bg-white">
-                                        {historySearch ? (
-                                            <div className="space-y-4">
-                                                {(() => {
-                                                    // Usamos historyData que ya está calculado y ordenado en el useEffect
-                                                    const filteredEvents = historyData;
-
-                                                    if (filteredEvents.length === 0) return <div className="text-center text-slate-400 py-10 font-bold">No se encontraron movimientos para "{historySearch}"</div>;
-                                                    
-                                                    return (
-                                                        <table className="w-full text-left border-collapse">
-                                                            <thead>
-                                                                <tr className="text-[10px] font-black text-slate-500 uppercase border-b border-gray-200">
-                                                                    <th className="py-3 pl-2 w-32">Fecha</th>
-                                                                    <th className="py-3 w-1/3">Activo</th>
-                                                                    <th className="py-3">Detalle Movimiento</th>
-                                                                </tr>
-                                                            </thead>
-                                                            <tbody className="text-xs font-bold text-slate-700">
-                                                                {filteredEvents.map((e, i) => (
-                                                                    <tr key={i} className="border-b border-gray-100 hover:bg-blue-50">
-                                                                        <td className="py-3 pl-2 text-slate-500 font-mono">{e.dateStr}</td>
-                                                                        <td className="py-3">
-                                                                            <div className="text-blue-600 font-mono">{e.item.inventoryNum}</div>
-                                                                            <div className="uppercase">{e.item.description}</div>
-                                                                            <div className="text-[10px] text-slate-400 uppercase">{e.item.brand} {e.item.measurement}</div>
-                                                                        </td>
-                                                                        <td className="py-3">
-                                                                            <div className="uppercase">{e.action}</div>
-                                                                        </td>
-                                                                    </tr>
-                                                                ))}
-                                                            </tbody>
-                                                        </table>
-                                                    );
-                                                })()}
-                                            </div>
-                                        ) : (
-                                            <div className="text-center text-slate-400 py-10">
-                                                <User size={48} className="mx-auto mb-4 opacity-20"/>
-                                                <p className="font-bold">Ingresa un nombre para ver su historial de activos asignados.</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            </div>
-                        )}
                     </main>
 
                     <datalist id="staff-list">
                         {Object.keys(DEFAULT_ASSIGNMENTS).map(key => <option key={key} value={key} />)}
                     </datalist>
+                    
+                    <datalist id="categories-list">
+                        {CATEGORIES_LIST.map(c => <option key={c} value={c} />)}
+                    </datalist>
                 </div>
             );
+        }
+
+        // --- COMPONENTES AUXILIARES ---
+
+        function SideItem({ icon, label, active, onClick }) {
+            return (
+                <button onClick={onClick} className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all ${active ? 'bg-blue-600 text-white shadow-2xl' : 'text-slate-400 hover:text-white hover:bg-slate-800'}`}>
+                    {icon} <span className="hidden lg:block font-bold text-sm tracking-tight">{label}</span>
+                </button>
+            );
+        }
+
+        function FilterTab({ label, count, active, onClick, icon }) {
+            return (
+                <button onClick={onClick} className={`px-5 py-2.5 rounded-2xl flex items-center gap-3 transition-all border-2 whitespace-nowrap ${active ? 'bg-slate-900 border-slate-900 text-white shadow-lg' : 'bg-white border-slate-100 text-slate-500 hover:border-slate-200'}`}>
+                    <span className={active ? 'text-blue-400' : 'text-slate-300'}>{icon}</span>
+                    <span className="text-[11px] font-black uppercase tracking-widest">{label}</span>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${active ? 'bg-white/10' : 'bg-slate-100 text-slate-500'}`}>{count}</span>
+                </button>
+            );
+        }
+
+        function DashboardView({ stats }) {
+            return (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-8 animate-in fade-in slide-in-from-bottom-6">
+                    <StatCard label="Stock Total" value={stats.total} icon={<Layers size={28}/>} color="blue" />
+                    <StatCard label="Items en Bodega" value={stats.bodega} icon={<Inbox size={28}/>} color="emerald" />
+                    <StatCard label="Items Asignados" value={stats.asignado} icon={<UserCheck size={28}/>} color="indigo" />
+                    <StatCard label="Alertas Stock" value={stats.bajoStock} icon={<AlertTriangle size={28}/>} color="red" />
+                </div>
+            );
+        }
+
+        function StatCard({ label, value, icon, color }) {
+            const themes = {
+                blue: "bg-blue-600 text-white shadow-blue-500/20",
+                emerald: "bg-emerald-500 text-white shadow-emerald-500/20",
+                indigo: "bg-indigo-600 text-white shadow-indigo-500/20",
+                red: "bg-red-600 text-white shadow-red-500/20"
+            };
+            return (
+                <div className={`p-8 rounded-[2.5rem] shadow-2xl transition-transform hover:-translate-y-2 ${themes[color]}`}>
+                    <div className="p-3 bg-white/20 backdrop-blur-md rounded-2xl w-fit mb-4">{icon}</div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.2em] opacity-80 mb-1">{label}</p>
+                    <p className="text-4xl font-black tracking-tighter">{value}</p>
+                </div>
+            );
+        }
+
+        function AssetCard({ asset, isStored, onClick, onSelect, isSelected, onPrintLetter }) {
+            const isLowStock = isStored && asset.quantity <= LOW_STOCK_THRESHOLD;
+
+            return (
+                <div 
+                    onClick={onClick}
+                    className={`group bg-white p-6 rounded-[2.5rem] border-2 transition-all cursor-pointer flex flex-col gap-5 relative overflow-hidden ${
+                        isSelected ? 'border-blue-500 shadow-2xl scale-[1.02]' : 'border-white shadow-xl hover:border-blue-100 hover:shadow-2xl'
+                    }`}
+                >
+                    <div onClick={(e) => { e.stopPropagation(); onSelect(e); }} className={`absolute top-4 right-4 w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'bg-slate-50 border-slate-100'}`}>
+                        {isSelected && <CheckCircle2 size={14} />}
+                    </div>
+
+                    <div className="flex justify-between items-start">
+                        <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter ${
+                            isStored ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'
+                        }`}>
+                            {isStored ? <Warehouse size={12}/> : <UserCheck size={12}/>}
+                            {isStored ? 'Bodega' : 'En Campo'}
+                        </div>
+                    </div>
+
+                    <div className="flex-1">
+                        <span className="text-[10px] font-mono font-bold text-slate-400 block mb-1">#{asset.inventoryNum}</span>
+                        <h4 className="text-base font-black text-slate-800 uppercase leading-tight line-clamp-2 mb-3 group-hover:text-blue-600 transition-colors">
+                            {asset.description}
+                        </h4>
+                        
+                        {!isStored ? (
+                            <div className="bg-orange-50/50 p-3 rounded-2xl border border-orange-100/50 space-y-2">
+                                <div className="flex items-center gap-2">
+                                    <div className="p-1.5 bg-orange-100 rounded-lg text-orange-600"><User size={14} /></div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-orange-400 uppercase leading-none mb-0.5">Responsable</p>
+                                            <p className="text-[11px] font-bold text-slate-700 uppercase leading-none truncate max-w-[120px]">{asset.manager || asset.RESPONSABLE}</p>
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2 border-t border-orange-100/50 pt-2">
+                                    <div className="p-1.5 bg-orange-100 rounded-lg text-orange-600"><Calendar size={14} /></div>
+                                    <div>
+                                        <p className="text-[9px] font-black text-orange-400 uppercase leading-none mb-0.5">Fecha Entrega</p>
+                                            <p className="text-[11px] font-bold text-slate-700 uppercase leading-none">{formatDate(asset.dateEntrega || asset['FECHA ENTREGA'] || asset['FECHA_ENTREGA'] || asset['Fecha Entrega'] || asset.date) || 'SIN FECHA'}</p>
+                                    </div>
+                                </div>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onPrintLetter();
+                                    }}
+                                    className="mt-2 w-full py-2 bg-indigo-100 text-indigo-700 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-indigo-200 transition-all flex items-center justify-center gap-2 border border-indigo-200"
+                                >
+                                    <Printer size={12}/> Reimprimir Carta
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="flex flex-wrap gap-2">
+                                <span className="text-[9px] font-bold bg-slate-50 text-slate-500 px-2 py-1 rounded-md uppercase">{asset.brand}</span>
+                                <span className="text-[9px] font-bold bg-slate-50 text-slate-500 px-2 py-1 rounded-md uppercase">{asset.category}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="flex justify-between items-center pt-5 border-t border-slate-50">
+                        <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase leading-none mb-1.5 tracking-widest">Stock</p>
+                            <div className="flex items-baseline gap-1.5">
+                                <span className={`text-3xl font-black tracking-tighter ${isLowStock ? 'text-red-600' : 'text-slate-900'}`}>
+                                    {asset.quantity}
+                                </span>
+                                <span className="text-[10px] font-black text-slate-400 uppercase">Unid</span>
+                            </div>
+                        </div>
+                        <div className="p-3.5 bg-slate-50 rounded-[1.2rem] text-slate-300 group-hover:bg-blue-600 group-hover:text-white transition-all">
+                            <ChevronRight size={20} strokeWidth={3} />
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function AssetDrawer({ 
+            asset, isStored, onClose, onPrintPC, onPrintBT, onPrintLetter,
+            actionForm, setActionForm, handleMovement, handleAddStock,
+            isEditing, setIsEditing, editForm, setEditForm, handleUpdateAsset, startEditing
+        }) {
+            if (!asset) return null;
+            const actionInputRef = useRef(null);
+
+            return (
+                <div className="fixed inset-0 z-[100] flex justify-end animate-in fade-in duration-300">
+                    <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={onClose}></div>
+                    <div className="relative w-full max-w-lg bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-500">
+                        <div className="p-8 border-b border-slate-100 flex justify-between items-center shrink-0">
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-2xl ${isStored ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'}`}><FileText size={24} /></div>
+                                <div>
+                                    <h2 className="text-xl font-black text-slate-900 uppercase tracking-tighter">Ficha Técnica</h2>
+                                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Activo #{asset.inventoryNum}</p>
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                {!isEditing && <button onClick={startEditing} className="p-2 hover:bg-blue-50 text-blue-600 rounded-full transition-all"><Edit size={20}/></button>}
+                                <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-all text-slate-400"><X size={24}/></button>
+                            </div>
+                        </div>
+
+                        <div className="flex-1 overflow-y-auto p-10 space-y-8 custom-scrollbar">
+                            {isEditing ? (
+                                <div className="space-y-4">
+                                    <FormInput label="Descripción" value={editForm.description} onChange={val => setEditForm({...editForm, description: val.toUpperCase()})} />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormInput label="Marca" value={editForm.brand} onChange={val => setEditForm({...editForm, brand: val.toUpperCase()})} />
+                                        <FormInput label="Medida" value={editForm.measurement} onChange={val => setEditForm({...editForm, measurement: val.toUpperCase()})} />
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <FormInput label="Color" value={editForm.color} onChange={val => setEditForm({...editForm, color: val.toUpperCase()})} />
+                                        <div className="space-y-1.5">
+                                            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">Categoría</label>
+                                            <select value={editForm.category} onChange={e => setEditForm({...editForm, category: e.target.value})} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent rounded-2xl outline-none text-sm font-bold uppercase transition-all">
+                                                {CATEGORIES_LIST.map(c => <option key={c} value={c}>{c}</option>)}
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-3 pt-4">
+                                        <button onClick={() => setIsEditing(false)} className="flex-1 py-4 border-2 border-slate-100 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-50 transition-all">Cancelar</button>
+                                        <button onClick={handleUpdateAsset} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 transition-all">Guardar</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <div>
+                                        <h3 className="text-2xl font-black text-slate-900 uppercase leading-tight mb-4">{asset.description}</h3>
+                                        <div className="flex flex-wrap gap-2">
+                                            <Badge text={asset.brand} />
+                                            <Badge text={asset.category} color="blue" />
+                                            <Badge text={asset.status} color={asset.status === 'Activo' ? 'emerald' : 'red'} />
+                                        </div>
+                                    </div>
+
+                                    {!isStored && (
+                                        <div className="p-6 rounded-[2rem] border-2 border-orange-100 bg-orange-50/30 space-y-4">
+                                            <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Información de Asignación</p>
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-orange-600"><User size={24}/></div>
+                                                <div>
+                                                    <p className="text-sm font-black text-slate-900 uppercase leading-tight mb-1">{asset.manager || asset.RESPONSABLE}</p>
+                                                    <p className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1"><MapPin size={10}/> {asset.area || asset.AREA || asset.DEPARTAMENTO}</p>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <div className="p-4 bg-white rounded-2xl shadow-sm text-orange-600"><Calendar size={24}/></div>
+                                                <div>
+                                                    <p className="text-[10px] font-black text-orange-400 uppercase tracking-widest mb-1">Fecha de Entrega</p>
+                                                    <p className="text-sm font-black text-slate-700 uppercase leading-tight">{formatDate(asset.dateEntrega || asset['FECHA ENTREGA'] || asset['FECHA_ENTREGA'] || asset['Fecha Entrega'] || asset.date) || 'NO REGISTRADA'}</p>
+                                                </div>
+                                            </div>
+                                            <button onClick={onPrintLetter} className="w-full py-3 bg-white border border-orange-200 text-orange-600 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-orange-50 transition-all flex items-center justify-center gap-2">
+                                                <Printer size={14}/> Re-imprimir Carta
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    <div className="space-y-4">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 border-l-2 border-blue-600">Acciones de Movimiento</p>
+                                        
+                                        {isStored ? (
+                                            <div className="space-y-3">
+                                                <div className="bg-blue-50/50 p-6 rounded-[2rem] border-2 border-blue-100 space-y-4">
+                                                    <div className="flex gap-2">
+                                                        <input type="number" min="1" max={asset.quantity} className="w-20 bg-white border-2 border-blue-100 rounded-2xl p-3 text-center font-black text-blue-600 outline-none" value={actionForm.quantity} onChange={e => setActionForm({...actionForm, quantity: e.target.value})} />
+                                                        <input ref={actionInputRef} list="staff-list" placeholder="QUIÉN RECIBE..." className="flex-1 bg-white border-2 border-blue-100 rounded-2xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-400" value={actionForm.person} onChange={e => setActionForm({...actionForm, person: e.target.value})} />
+                                                    </div>
+                                                    <input 
+                                                        placeholder="ÁREA / DEPARTAMENTO"
+                                                        className="w-full bg-white border-2 border-blue-100 rounded-2xl p-3 text-sm font-bold uppercase outline-none focus:border-blue-400"
+                                                        value={actionForm.area || DEFAULT_ASSIGNMENTS[actionForm.person.toUpperCase()] || ''}
+                                                        onChange={e => setActionForm({...actionForm, area: e.target.value})}
+                                                    />
+                                                    <button onClick={() => handleMovement('ASSIGN')} disabled={!actionForm.person} className="w-full py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all">Confirmar Entrega</button>
+                                                </div>
+
+                                                <div className="bg-slate-50/50 p-6 rounded-[2rem] border-2 border-slate-100 space-y-4">
+                                                    <div className="flex gap-2">
+                                                        <input type="number" min="1" className="w-24 bg-white border-2 border-slate-100 rounded-2xl p-3 text-center font-black outline-none" value={actionForm.stockToAdd} onChange={e => setActionForm({...actionForm, stockToAdd: e.target.value})} />
+                                                        <button onClick={handleAddStock} className="flex-1 bg-emerald-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100">Reponer Stock</button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-indigo-50/50 p-6 rounded-[2rem] border-2 border-indigo-100 space-y-4">
+                                                <div className="flex gap-2">
+                                                    <input type="number" min="1" max={asset.quantity} className="w-20 bg-white border-2 border-indigo-100 rounded-2xl p-3 text-center font-black text-indigo-600 outline-none" value={actionForm.quantity} onChange={e => setActionForm({...actionForm, quantity: e.target.value})} />
+                                                    <select className="flex-1 bg-white border-2 border-indigo-100 rounded-2xl p-3 text-sm font-bold uppercase outline-none" value={actionForm.area} onChange={e => setActionForm({...actionForm, area: e.target.value})}>
+                                                        {BODEGAS_LIST.map(b => <option key={b} value={b}>{b}</option>)}
+                                                    </select>
+                                                </div>
+                                                <button onClick={() => handleMovement('RETURN')} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">Confirmar Devolución</button>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    <div className="space-y-4">
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] pl-2 border-l-2 border-slate-300">Etiquetas</p>
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <button onClick={onPrintPC} className="py-4 bg-white border-2 border-slate-100 rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:border-slate-300 transition-all"><Printer size={16}/> Imprimir PC</button>
+                                            <button onClick={onPrintBT} className="py-4 bg-slate-900 text-white rounded-2xl font-black text-[10px] uppercase flex items-center justify-center gap-2 hover:bg-slate-800 transition-all"><Bluetooth size={16}/> Imprimir BT</button>
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function HistoryView({ historyData, historySearch, setHistorySearch, onPrint }) {
+            return (
+                <div className="space-y-6 animate-in fade-in duration-500">
+                    <div className="flex flex-col md:flex-row justify-between items-end gap-4 bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100">
+                        <div className="flex-1 w-full">
+                            <h2 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-4 ml-2">Historial Personal</h2>
+                            <div className="relative">
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20}/>
+                                <input type="text" placeholder="BUSCAR MOVIMIENTOS POR NOMBRE..." className="w-full pl-12 pr-4 py-4 rounded-2xl bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white outline-none font-bold uppercase text-slate-700 transition-all" value={historySearch} onChange={e => setHistorySearch(e.target.value.toUpperCase())} />
+                            </div>
+                        </div>
+                        <button onClick={onPrint} className="bg-slate-900 text-white px-8 py-4 rounded-2xl text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-all flex items-center gap-3 shadow-xl shadow-slate-200">
+                            <Printer size={18}/> Imprimir Reporte
+                        </button>
+                    </div>
+
+                    <div className="bg-white rounded-[2.5rem] shadow-xl border border-slate-100 overflow-hidden">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-left">
+                                <thead className="bg-slate-50/50 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                                    <tr>
+                                        <th className="px-8 py-5">Fecha</th>
+                                        <th className="px-8 py-5">Activo</th>
+                                        <th className="px-8 py-5">Movimiento</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-50">
+                                    {historyData.length > 0 ? (
+                                        historyData.map((e, i) => (
+                                            <tr key={i} className="hover:bg-slate-50/50 transition-colors">
+                                                <td className="px-8 py-5">
+                                                    <div className="flex items-center gap-2 text-xs font-bold text-slate-500"><Clock size={14}/> {e.dateStr}</div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="text-blue-600 font-mono font-black text-sm">{e.item.inventoryNum}</div>
+                                                    <div className="font-bold text-slate-700 text-xs uppercase mt-0.5">{e.item.description}</div>
+                                                </td>
+                                                <td className="px-8 py-5">
+                                                    <div className="text-xs font-bold text-slate-600 uppercase italic leading-relaxed">{e.action}</div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    ) : (
+                                        <tr><td colSpan="3" className="px-8 py-20 text-center text-slate-400 font-bold italic">No se encontraron registros para la búsqueda actual.</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function Badge({ text, color = "slate" }) {
+            const colors = { 
+                slate: "bg-slate-100 text-slate-600", 
+                blue: "bg-blue-100 text-blue-600", 
+                emerald: "bg-emerald-100 text-emerald-600", 
+                red: "bg-red-100 text-red-600", 
+                orange: "bg-orange-100 text-orange-600" 
+            };
+            return <span className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-tight ${colors[color]}`}>{text}</span>;
+        }
+
+        function FormInput({ label, value, onChange, type = "text", placeholder, required }) {
+            return (
+                <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest pl-1">{label}</label>
+                    <input type={type} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} required={required} className="w-full px-5 py-3.5 bg-slate-50 border-2 border-transparent focus:border-blue-100 focus:bg-white rounded-2xl outline-none text-sm font-bold transition-all uppercase" />
+                </div>
+            );
+        }
+
+        function SkeletonCard() {
+            return <div className="bg-white p-8 rounded-[2.5rem] h-64 animate-pulse flex flex-col justify-between border-2 border-white shadow-xl"><div className="w-24 h-5 bg-slate-100 rounded-full"></div><div className="space-y-3"><div className="w-full h-5 bg-slate-100 rounded-lg"></div><div className="w-2/3 h-5 bg-slate-100 rounded-lg"></div></div><div className="w-full h-10 bg-slate-50 rounded-lg"></div></div>;
         }
 
         try {
