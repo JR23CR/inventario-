@@ -1491,6 +1491,8 @@
                 sessionData = { name: "Jose Corado", role: "inventario" };
             } else if (user === "recepcion" && pass === "recepcion26") {
                 sessionData = { name: "Yasmin Díaz", role: "recepcion" };
+            } else if (user === "ervin" && pass === "fabrica2026") {
+                sessionData = { name: "Ervin", role: "produccion" };
             } else {
                 errorMsg.classList.remove('hidden');
                 // Efecto de sacudida en caso de error
@@ -1525,6 +1527,7 @@
             const dashboardStats = document.querySelector('#view-home .grid');
             const dashboardHeader = document.querySelector('#view-home .flex.flex-col.sm\\:flex-row');
 
+            // Default: hide all nav items and sections
             if (rol === "admin") {
                 navItems.forEach(item => {
                     const spanText = item.querySelector('span').innerText.trim();
@@ -1553,6 +1556,25 @@
                 // Ocultar pntalla de bienvenida personalizada si existiera
                 const msg = document.getElementById('recepcion-welcome');
                 if(msg) msg.style.display = 'none';
+            } else if (rol === "produccion") {
+                navItems.forEach(item => {
+                    const spanText = item.querySelector('span').innerText.trim();
+                    // Allow access to "Inicio" and "Registro"
+                    item.style.display = (spanText === "Inicio" || spanText === "Registro") ? 'flex' : 'none';
+                });
+                sections.forEach(sec => sec.style.display = 'none'); // Hide all section titles
+                if (exportBtn) exportBtn.style.display = 'none';
+
+                // Hide Dashboard for "produccion" role
+                if(dashboardStats) dashboardStats.style.display = 'none';
+                if(dashboardHeader) dashboardHeader.style.display = 'none';
+
+                // Ensure "Registro" section title is visible if it's part of a section
+                const registroNavItem = document.querySelector('a[onclick*="registro.html"]');
+                if (registroNavItem) {
+                    const parentSection = registroNavItem.closest('.pt-6');
+                    if (parentSection) parentSection.style.display = 'block';
+                }
             } else {
                 // Usuario inventario ve todo
                 navItems.forEach(item => item.style.display = 'flex');
